@@ -2,6 +2,7 @@ package com.example
 
 import android.app.Application
 import com.example.obd.data.DiagnosticDatabase
+import com.example.obd.data.ObdSessionLogger
 import com.example.obd.data.ObdTelemetryRepository
 import com.example.obd.data.SettingsDataStore
 import com.example.obd.protocol.BluetoothScanner
@@ -14,6 +15,9 @@ class ObdApplication : Application() {
     lateinit var diagnosticDatabase: DiagnosticDatabase
         private set
 
+    lateinit var sessionLogger: ObdSessionLogger
+        private set
+
     lateinit var telemetryRepository: ObdTelemetryRepository
         private set
 
@@ -21,12 +25,15 @@ class ObdApplication : Application() {
         super.onCreate()
         settingsDataStore = SettingsDataStore(this)
         diagnosticDatabase = DiagnosticDatabase.getInstance(this)
+        sessionLogger = ObdSessionLogger(this)
         val scanner = BluetoothScanner(this)
         telemetryRepository = ObdTelemetryRepository(
             context = this,
             settingsDataStore = settingsDataStore,
             diagnosticScanDao = diagnosticDatabase.diagnosticScanDao(),
-            bluetoothScanner = scanner
+            customPidDao = diagnosticDatabase.customPidDao(),
+            bluetoothScanner = scanner,
+            sessionLogger = sessionLogger
         )
     }
 }

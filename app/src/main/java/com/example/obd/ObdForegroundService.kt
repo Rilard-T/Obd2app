@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
@@ -12,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import com.example.MainActivity
 import com.example.ObdApplication
 import com.example.R
+import com.example.obd.i18n.AppLocalization
 import com.example.obd.model.ObdConnectionState
 import com.example.obd.model.ObdPid
 import kotlinx.coroutines.CoroutineScope
@@ -41,28 +43,39 @@ class ObdForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIFICATION_ID, buildNotification("Подключение к OBD2..."))
+        val repo = (application as ObdApplication).telemetryRepository
+        val initCtx = AppLocalization.localizedContext(this, repo.settings.value.appLanguage)
+        startForeground(
+            NOTIFICATION_ID,
+            buildNotification(initCtx, initCtx.getString(R.string.fg_connecting))
+        )
         updateJob?.cancel()
         updateJob = serviceScope.launch {
-            val repo = (application as ObdApplication).telemetryRepository
             while (isActive) {
+                val userSettings = repo.settings.value
+                val isEng = userSettings.isEnglish
+                val l10nCtx = AppLocalization.localizedContext(this@ObdForegroundService, userSettings.appLanguage)
                 val conn = repo.connectionState.value
                 val readings = repo.readings.value
-                val rpm = readings[ObdPid.ENGINE_RPM]?.let { "${it.value.toInt()} об/мин" } ?: "--"
-                val speed = readings[ObdPid.VEHICLE_SPEED]?.let { "${it.value.toInt()} км/ч" } ?: "--"
-                val temp = readings[ObdPid.COOLANT_TEMP]?.let { "${it.value.toInt()}°C" } ?: "--"
+                val rpmUnit = ObdPid.ENGINE_RPM.localizedUnit(isEng)
+                val speedUnit = ObdPid.VEHICLE_SPEED.localizedUnit(isEng)
+                val rpm = readings[ObdPid.ENGINE_RPM.modeAndPid]?.let { "${it.value.toInt()} $rpmUnit" } ?: "--"
+                val speed = readings[ObdPid.VEHICLE_SPEED.modeAndPid]?.let { "${it.value.toInt()} $speedUnit" } ?: "--"
+                val temp = readings[ObdPid.COOLANT_TEMP.modeAndPid]?.let {
+                    "${ObdPid.COOLANT_TEMP.formatValue(it.value, userSettings.useFahrenheit, userSettings.pressureUnit, isEng)}${ObdPid.COOLANT_TEMP.displayUnit(userSettings.useFahrenheit, userSettings.pressureUnit, isEng)}"
+                } ?: "--"
 
                 val statusText = when (conn) {
                     is ObdConnectionState.Connected ->
-                        "${conn.deviceName}: $rpm • $speed • ОЖ $temp"
+                        l10nCtx.getString(R.string.fg_conn_line, conn.deviceName, rpm, speed, temp)
                     is ObdConnectionState.Simulation ->
-                        "Симуляция: $rpm • $speed • ОЖ $temp"
+                        l10nCtx.getString(R.string.fg_sim_line, rpm, speed, temp)
                     is ObdConnectionState.Connecting ->
                         "${conn.deviceName}: ${conn.step}"
-                    else -> "Ожидание подключения OBD2"
+                    else -> l10nCtx.getString(R.string.fg_waiting)
                 }
                 val manager = getSystemService(NotificationManager::class.java)
-                manager?.notify(NOTIFICATION_ID, buildNotification(statusText))
+                manager?.notify(NOTIFICATION_ID, buildNotification(l10nCtx, statusText))
                 delay(1500L)
             }
         }
@@ -77,18 +90,20 @@ class ObdForegroundService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val repo = (application as ObdApplication).telemetryRepository
+            val l10nCtx = AppLocalization.localizedContext(this, repo.settings.value.appLanguage)
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Телеметрия OBD2",
+                l10nCtx.getString(R.string.fg_channel_name),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Поддержание связи с OBD2 адаптером для Android Auto"
+                description = l10nCtx.getString(R.string.fg_channel_desc)
             }
             getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
         }
     }
 
-    private fun buildNotification(text: String): Notification {
+    private fun buildNotification(l10nCtx: Context, text: String): Notification {
         val openAppIntent = PendingIntent.getActivity(
             this,
             0,
@@ -96,7 +111,7 @@ class ObdForegroundService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("OBD2 Авто • Телеметрия активна")
+            .setContentTitle(l10nCtx.getString(R.string.fg_notif_title))
             .setContentText(text)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)

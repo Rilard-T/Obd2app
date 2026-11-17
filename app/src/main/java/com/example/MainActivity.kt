@@ -1,11 +1,14 @@
 package com.example
 
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -42,6 +45,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,8 +54,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -59,6 +66,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.obd.i18n.AppLocalization
+import com.example.obd.i18n.LocalL10nContext
+import com.example.obd.i18n.l10nStr
 import com.example.obd.model.ObdConnectionState
 import com.example.ui.ObdViewModel
 import com.example.ui.components.AndroidAutoPreviewDialog
@@ -108,89 +118,129 @@ class MainActivity : ComponentActivity() {
 fun ObdAutoRootApp(
     viewModel: ObdViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val navController = rememberNavController()
-    val backStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = backStackEntry?.destination
-    var showAaPreview by remember { mutableStateOf(false) }
-
-    if (showAaPreview) {
-        AndroidAutoPreviewDialog(
-            uiState = uiState,
-            onDismiss = { showAaPreview = false },
-            onTogglePinAuto = { viewModel.toggleAndroidAutoPid(it) },
-            onScanDtcs = { viewModel.scanDtcs() },
-            onStartSimulation = { viewModel.startSimulationMode() },
-            onDisconnect = { viewModel.disconnect() }
-        )
+    val l10nCtx = remember(context, uiState.settings.appLanguage) {
+        AppLocalization.localizedContext(context, uiState.settings.appLanguage)
     }
 
-    val destinations = listOf(
-        NavDestinationItem(
-            route = DashboardRoute,
-            label = "Приборы",
-            selectedIcon = Icons.Filled.Speed,
-            unselectedIcon = Icons.Outlined.Speed,
-            testTag = "nav_dashboard"
-        ),
-        NavDestinationItem(
-            route = SensorsRoute,
-            label = "Датчики",
-            selectedIcon = Icons.Filled.ShowChart,
-            unselectedIcon = Icons.Outlined.ShowChart,
-            testTag = "nav_sensors"
-        ),
-        NavDestinationItem(
-            route = DiagnosticsRoute,
-            label = "Ошибки",
-            selectedIcon = Icons.Filled.Build,
-            unselectedIcon = Icons.Outlined.Build,
-            testTag = "nav_diagnostics"
-        ),
-        NavDestinationItem(
-            route = ConnectionRoute,
-            label = "OBD2",
-            selectedIcon = Icons.Filled.DirectionsCar,
-            unselectedIcon = Icons.Outlined.DirectionsCar,
-            testTag = "nav_connection"
-        )
-    )
+    CompositionLocalProvider(LocalL10nContext provides l10nCtx) {
+        val navController = rememberNavController()
+        val backStackEntry by navController.currentBackStackEntryAsState()
+        val currentDestination = backStackEntry?.destination
+        var showAaPreview by remember { mutableStateOf(false) }
 
-    fun navigateSingleTop(route: Any) {
-        navController.navigate(route) {
-            popUpTo(navController.graph.findStartDestination().id) {
-                saveState = true
-            }
-            launchSingleTop = true
-            restoreState = true
+        val startupPermissionLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestMultiplePermissions()
+        ) { results ->
+            viewModel.logInfo("PERM", "Initial permission request result: $results")
+            viewModel.refreshBluetoothDevices()
         }
-    }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val useRail = maxWidth >= 600.dp
+        LaunchedEffect(
+            uiState.settingsLoaded,
+            uiState.settings.hasRequestedStartupPermissions,
+            uiState.hasBluetoothPermissions,
+            uiState.isBluetoothEnabled
+        ) {
+            if (!uiState.settingsLoaded) return@LaunchedEffect
+            if (!uiState.settings.hasRequestedStartupPermissions) {
+                viewModel.markStartupPermissionsRequested()
+                val perms = viewModel.startupPermissions()
+                val missing = perms.filter {
+                    ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+                }
+                if (missing.isNotEmpty()) {
+                    viewModel.logInfo("PERM", "First-launch permission request: $missing")
+                    startupPermissionLauncher.launch(missing.toTypedArray())
+                    return@LaunchedEffect
+                }
+            }
+            val reason = if (uiState.settings.isEnglish) "App launch" else "Запуск приложения"
+            viewModel.tryAutoConnect(reason)
+        }
 
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            containerColor = CarbonObsidian,
-            contentWindowInsets = WindowInsets.safeDrawing,
-            topBar = {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "OBD2 Авто",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            ConnectionStatusPill(uiState.connectionState)
-                        }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = CarbonObsidian
+        if (showAaPreview) {
+            AndroidAutoPreviewDialog(
+                uiState = uiState,
+                onDismiss = { showAaPreview = false },
+                onSelectDisplayMode = { viewModel.setAndroidAutoDisplayMode(it) },
+                onCyclePreset = { viewModel.cycleNextCockpitPreset() },
+                onSetDialSlot = { idx, id -> viewModel.setFullscreenDialSlot(idx, id) },
+                onSetStripSlot = { idx, id -> viewModel.setFullscreenStripSlot(idx, id) },
+                onTogglePinAuto = { viewModel.toggleAndroidAutoSensor(it) },
+                onScanDtcs = { viewModel.scanDtcs() },
+                onStartSimulation = { viewModel.startSimulationMode() },
+                onDisconnect = { viewModel.disconnect() }
+            )
+        }
+
+        val destinations = listOf(
+            NavDestinationItem(
+                route = DashboardRoute,
+                label = l10nStr(R.string.nav_gauges),
+                selectedIcon = Icons.Filled.Speed,
+                unselectedIcon = Icons.Outlined.Speed,
+                testTag = "nav_dashboard"
+            ),
+            NavDestinationItem(
+                route = SensorsRoute,
+                label = l10nStr(R.string.nav_sensors),
+                selectedIcon = Icons.Filled.ShowChart,
+                unselectedIcon = Icons.Outlined.ShowChart,
+                testTag = "nav_sensors"
+            ),
+            NavDestinationItem(
+                route = DiagnosticsRoute,
+                label = l10nStr(R.string.nav_diagnostics),
+                selectedIcon = Icons.Filled.Build,
+                unselectedIcon = Icons.Outlined.Build,
+                testTag = "nav_diagnostics"
+            ),
+            NavDestinationItem(
+                route = ConnectionRoute,
+                label = l10nStr(R.string.nav_obd2),
+                selectedIcon = Icons.Filled.DirectionsCar,
+                unselectedIcon = Icons.Outlined.DirectionsCar,
+                testTag = "nav_connection"
+            )
+        )
+
+        fun navigateSingleTop(route: Any) {
+            navController.navigate(route) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val useRail = maxWidth >= 600.dp
+
+            Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                containerColor = CarbonObsidian,
+                contentWindowInsets = WindowInsets.safeDrawing,
+                topBar = {
+                    CenterAlignedTopAppBar(
+                        title = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = l10nStr(R.string.app_name),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                ConnectionStatusPill(uiState.connectionState)
+                            }
+                        },
+                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                            containerColor = CarbonObsidian
+                        )
                     )
-                )
-            },
+                },
             bottomBar = {
                 if (!useRail) {
                     NavigationBar(
@@ -276,23 +326,39 @@ fun ObdAutoRootApp(
                                 uiState = uiState,
                                 onNavigateToConnection = { navigateSingleTop(ConnectionRoute) },
                                 onStartSimulation = { viewModel.startSimulationMode() },
-                                onTogglePinAuto = { pid -> viewModel.toggleAndroidAutoPid(pid) },
-                                onOpenSensorChart = { pid ->
-                                    viewModel.selectChartPid(pid)
+                                onTogglePinAuto = { sensorId -> viewModel.toggleAndroidAutoSensor(sensorId) },
+                                onOpenSensorChart = { sensorId ->
+                                    viewModel.selectChartSensor(sensorId)
                                     navigateSingleTop(SensorsRoute)
                                 },
-                                onOpenAndroidAutoPreview = { showAaPreview = true }
+                                onOpenAndroidAutoPreview = { showAaPreview = true },
+                                onDismissAlert = { viewModel.dismissActiveAlert() }
                             )
                         }
                         composable<SensorsRoute> {
                             SensorsScreen(
                                 uiState = uiState,
                                 onSelectCategory = { viewModel.selectCategory(it) },
-                                onSelectChartPid = { viewModel.selectChartPid(it) },
-                                onTogglePinAuto = { viewModel.toggleAndroidAutoPid(it) },
+                                onSelectChartSensor = { viewModel.selectChartSensor(it) },
+                                onTogglePinAuto = { viewModel.toggleAndroidAutoSensor(it) },
                                 onSetPollingMs = { viewModel.setPollingIntervalMs(it) },
                                 onSetUseFahrenheit = { viewModel.setUseFahrenheit(it) },
-                                onSetPressureUnit = { viewModel.setPressureUnit(it) }
+                                onSetPressureUnit = { viewModel.setPressureUnit(it) },
+                                onAddCustomPid = { name, shortName, modeAndPid, header, equation, unit, minV, maxV, dec, warnH, critH, warnL, critL, alertsEn ->
+                                    viewModel.addCustomPid(
+                                        name, shortName, modeAndPid, header, equation, unit,
+                                        minV, maxV, dec, warnH, critH, warnL, critL, alertsEn
+                                    )
+                                },
+                                onUpdateCustomPid = { viewModel.updateCustomPid(it) },
+                                onDeleteCustomPid = { viewModel.deleteCustomPid(it) },
+                                onImportTorqueCsv = { csv, onComplete ->
+                                    viewModel.importTorqueCsv(csv, onComplete)
+                                },
+                                onTestLivePid = { modeAndPid, header, equation ->
+                                    viewModel.probeCustomPid(modeAndPid, header, equation)
+                                },
+                                onSetSensorAlertOverride = { viewModel.setSensorAlertOverride(it) }
                             )
                         }
                         composable<DiagnosticsRoute> {
@@ -300,7 +366,10 @@ fun ObdAutoRootApp(
                                 uiState = uiState,
                                 onScanDtcs = { viewModel.scanDtcs() },
                                 onClearDtcs = { viewModel.clearDtcs() },
-                                onClearHistory = { viewModel.clearScanHistory() }
+                                onClearHistory = { viewModel.clearScanHistory() },
+                                onBuildErrorReportText = { viewModel.buildErrorReportText() },
+                                onCreateShareableReportFile = { viewModel.createShareableReportFile() },
+                                onClearLogs = { viewModel.clearLogs() }
                             )
                         }
                         composable<ConnectionRoute> {
@@ -315,13 +384,31 @@ fun ObdAutoRootApp(
                                 onStartSimulation = { viewModel.startSimulationMode() },
                                 onDisconnect = { viewModel.disconnect() },
                                 onToggleShowAllBt = { viewModel.toggleShowAllBtDevices() },
-                                onToggleAndroidAutoPid = { viewModel.toggleAndroidAutoPid(it) },
-                                onOpenAndroidAutoPreview = { showAaPreview = true }
+                                onToggleAndroidAutoSensor = { viewModel.toggleAndroidAutoSensor(it) },
+                                onSelectDisplayMode = { viewModel.setAndroidAutoDisplayMode(it) },
+                                onSelectPreset = { viewModel.selectCockpitPreset(it) },
+                                onRenamePreset = { id, name -> viewModel.renameCockpitPreset(id, name) },
+                                onSetDialSlot = { idx, id -> viewModel.setFullscreenDialSlot(idx, id) },
+                                onSetStripSlot = { idx, id -> viewModel.setFullscreenStripSlot(idx, id) },
+                                onResetFullscreenDefaults = { viewModel.resetFullscreenLayoutDefaults() },
+                                onSetAutoConnect = { viewModel.setAutoConnectOnLaunch(it) },
+                                onSetVoiceAlerts = { viewModel.setVoiceAlertsEnabled(it) },
+                                onSetAaPopupAlerts = { viewModel.setAaPopupAlertsEnabled(it) },
+                                onSetTtsVolume = { viewModel.setTtsVolume(it) },
+                                onSetTtsSpeechRate = { viewModel.setTtsSpeechRate(it) },
+                                onSetTtsVoiceName = { viewModel.setTtsVoiceName(it) },
+                                onPreloadTtsVoices = { viewModel.preloadTtsVoices() },
+                                onTriggerTestAlert = { viewModel.triggerTestAlert() },
+                                onRunAdapterBenchmark = { viewModel.runAdapterBenchmark() },
+                                onOpenAndroidAutoPreview = { showAaPreview = true },
+                                onOpenErrorLogs = { navigateSingleTop(DiagnosticsRoute) },
+                                onSetAppLanguage = { viewModel.setAppLanguage(it) }
                             )
                         }
                     }
                 }
             }
+        }
         }
     }
 }
@@ -329,11 +416,11 @@ fun ObdAutoRootApp(
 @Composable
 private fun ConnectionStatusPill(state: ObdConnectionState) {
     val (label, color) = when (state) {
-        is ObdConnectionState.Connected -> "ONLINE" to NominalEmerald
-        is ObdConnectionState.Simulation -> "СИМУЛЯЦИЯ" to MotorsportAmber
-        is ObdConnectionState.Connecting -> "ПОИСК" to TelemetryCyan
-        is ObdConnectionState.Error -> "ОШИБКА" to MaterialTheme.colorScheme.error
-        is ObdConnectionState.Disconnected -> "ОФЛАЙН" to TextSecondary
+        is ObdConnectionState.Connected -> l10nStr(R.string.status_pill_online) to NominalEmerald
+        is ObdConnectionState.Simulation -> l10nStr(R.string.status_pill_sim) to MotorsportAmber
+        is ObdConnectionState.Connecting -> l10nStr(R.string.status_pill_connecting) to TelemetryCyan
+        is ObdConnectionState.Error -> l10nStr(R.string.status_pill_error) to MaterialTheme.colorScheme.error
+        is ObdConnectionState.Disconnected -> l10nStr(R.string.status_pill_offline) to TextSecondary
     }
     Surface(
         shape = MaterialTheme.shapes.small,

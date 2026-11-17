@@ -38,6 +38,15 @@ class BluetoothScanner(private val context: Context) {
         }
     }
 
+    fun allStartupPermissions(): Array<String> {
+        val list = mutableListOf<String>()
+        list.addAll(requiredPermissions())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            list.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        return list.distinct().toTypedArray()
+    }
+
     fun hasBluetoothPermissions(): Boolean {
         return requiredPermissions().all { permission ->
             ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
@@ -52,7 +61,7 @@ class BluetoothScanner(private val context: Context) {
         if (!hasBluetoothPermissions()) return emptyList()
         return try {
             adapter.bondedDevices.orEmpty().map { device ->
-                val deviceName = device.name?.takeIf { it.isNotBlank() } ?: "Bluetooth устройство"
+                val deviceName = device.name?.takeIf { it.isNotBlank() } ?: "Bluetooth OBD"
                 val transport = if (device.type == android.bluetooth.BluetoothDevice.DEVICE_TYPE_LE) {
                     BluetoothTransportType.BLE
                 } else {
@@ -89,9 +98,9 @@ class BluetoothScanner(private val context: Context) {
                 val name = try {
                     device.name?.takeIf { it.isNotBlank() }
                         ?: result.scanRecord?.deviceName?.takeIf { it.isNotBlank() }
-                        ?: "BLE Устройство"
+                        ?: "BLE Device"
                 } catch (_: SecurityException) {
-                    "BLE Устройство"
+                    "BLE Device"
                 }
                 trySend(
                     BluetoothDeviceItem(
@@ -122,6 +131,97 @@ class BluetoothScanner(private val context: Context) {
             } catch (_: Exception) {
             }
         }
+    }
+
+    @SuppressLint("MissingPermission")
+    fun scanClassicDevices(): Flow<BluetoothDeviceItem> = callbackFlow {
+        val adapter = bluetoothAdapter
+        if (adapter == null || !adapter.isEnabled || !hasBluetoothPermissions()) {
+            close()
+            return@callbackFlow
+        }
+
+        val seenAddresses = mutableSetOf<String>()
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(ctx: Context, intent: android.content.Intent) {
+                when (intent.action) {
+                    android.bluetooth.BluetoothDevice.ACTION_FOUND -> {
+                        val device: android.bluetooth.BluetoothDevice? =
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                intent.getParcelableExtra(
+                                    android.bluetooth.BluetoothDevice.EXTRA_DEVICE,
+                                    android.bluetooth.BluetoothDevice::class.java
+                                )
+                            } else {
+                                @Suppress("DEPRECATION")
+                                intent.getParcelableExtra(android.bluetooth.BluetoothDevice.EXTRA_DEVICE)
+                            }
+                        val address = device?.address ?: return
+                        if (!seenAddresses.add(address)) return
+                        val name = try {
+                            device.name?.takeIf { it.isNotBlank() } ?: "BT Device"
+                        } catch (_: SecurityException) {
+                            "BT Device"
+                        }
+                        val isPaired = try {
+                            device.bondState == android.bluetooth.BluetoothDevice.BOND_BONDED
+                        } catch (_: SecurityException) {
+                            false
+                        }
+                        val rssi = intent.getShortExtra(
+                            android.bluetooth.BluetoothDevice.EXTRA_RSSI,
+                            Short.MIN_VALUE
+                        ).takeIf { it != Short.MIN_VALUE }?.toInt()
+                        trySend(
+                            BluetoothDeviceItem(
+                                name = name,
+                                address = address,
+                                transport = BluetoothTransportType.CLASSIC_SPP,
+                                isPaired = isPaired,
+                                isLikelyObd = isLikelyObdName(name),
+                                rssi = rssi
+                            )
+                        )
+                    }
+                    BluetoothAdapter.ACTION_DISCOVERY_FINISHED -> {
+                        close()
+                    }
+                }
+            }
+        }
+
+        val filter = android.content.IntentFilter().apply {
+            addAction(android.bluetooth.BluetoothDevice.ACTION_FOUND)
+            addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)
+        }
+        ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
+
+        try {
+            if (adapter.isDiscovering) {
+                adapter.cancelDiscovery()
+            }
+            adapter.startDiscovery()
+        } catch (_: SecurityException) {
+            close()
+        }
+
+        awaitClose {
+            try {
+                if (adapter.isDiscovering) {
+                    adapter.cancelDiscovery()
+                }
+            } catch (_: Exception) {
+            }
+            try {
+                context.unregisterReceiver(receiver)
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    fun findPreferredPairedObdDevice(): BluetoothDeviceItem? {
+        val paired = getPairedDevices()
+        return paired.firstOrNull { it.isLikelyObd } ?: paired.firstOrNull()
     }
 
     private fun isLikelyObdName(name: String): Boolean {

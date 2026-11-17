@@ -25,15 +25,19 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.example.ObdApplication
 import com.example.R
+import com.example.obd.i18n.AppLocalization
 import com.example.obd.model.AlertLevel
 import com.example.obd.model.ObdConnectionState
-import com.example.obd.model.ObdPid
 import com.example.obd.model.SensorCategory
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import java.util.Locale
 
-class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
+class ObdMainCarScreen(
+    carContext: CarContext,
+    private val surfaceController: CockpitSurfaceController? = null
+) : Screen(carContext) {
 
     companion object {
         private const val TAB_GAUGES = "tab_gauges"
@@ -49,6 +53,7 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
     private var lastInvalidateMs: Long = 0L
 
     init {
+        repository.sessionLogger.info("AUTO", "Открыт экран Android Auto (carApiLevel=${carContext.carAppApiLevel})")
         lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onCreate(owner: LifecycleOwner) {
                 lifecycleScope.launch {
@@ -56,8 +61,9 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
                         repository.connectionState,
                         repository.readings,
                         repository.dtcState,
-                        repository.settings
-                    ) { _, _, _, _ -> Unit }.collectLatest {
+                        repository.settings,
+                        repository.sensors
+                    ) { _, _, _, _, _ -> Unit }.collectLatest {
                         val now = System.currentTimeMillis()
                         if (now - lastInvalidateMs >= 550L) {
                             lastInvalidateMs = now
@@ -78,6 +84,8 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
     }
 
     private fun buildTabTemplate(): Template {
+        val settings = repository.settings.value
+        val l10nCtx = AppLocalization.localizedContext(carContext, settings.appLanguage)
         val activeContentTemplate = when (activeTabId) {
             TAB_SENSORS -> buildAllSensorsListTemplate(embedded = true)
             TAB_DTC -> buildDtcTemplate(embedded = true)
@@ -97,28 +105,28 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
             .addTab(
                 Tab.Builder()
                     .setContentId(TAB_GAUGES)
-                    .setTitle("Приборы")
+                    .setTitle(l10nCtx.getString(R.string.nav_gauges))
                     .setIcon(carIcon(R.drawable.ic_car_gauges))
                     .build()
             )
             .addTab(
                 Tab.Builder()
                     .setContentId(TAB_SENSORS)
-                    .setTitle("Датчики")
+                    .setTitle(l10nCtx.getString(R.string.nav_sensors))
                     .setIcon(carIcon(R.drawable.ic_car_sensors))
                     .build()
             )
             .addTab(
                 Tab.Builder()
                     .setContentId(TAB_DTC)
-                    .setTitle("Ошибки")
+                    .setTitle(l10nCtx.getString(R.string.nav_diagnostics))
                     .setIcon(carIcon(R.drawable.ic_car_dtc))
                     .build()
             )
             .addTab(
                 Tab.Builder()
                     .setContentId(TAB_CONNECT)
-                    .setTitle("OBD2")
+                    .setTitle(l10nCtx.getString(R.string.nav_obd2))
                     .setIcon(carIcon(R.drawable.ic_car_connect))
                     .build()
             )
@@ -132,32 +140,39 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
 
     private fun buildGaugesGridTemplate(embedded: Boolean): Template {
         val settings = repository.settings.value
+        val isEng = settings.isEnglish
+        val l10nCtx = AppLocalization.localizedContext(carContext, settings.appLanguage)
         val readings = repository.readings.value
+        val allSensors = repository.sensors.value
         val conn = repository.connectionState.value
         val gridLimit = getConstraintLimit(ConstraintManager.CONTENT_LIMIT_TYPE_GRID, 6)
-        val pids = settings.androidAutoPids.take(gridLimit)
+        val pinnedSensors = settings.androidAutoSensorIds
+            .mapNotNull { id -> allSensors.find { it.id == id } }
+            .take(gridLimit)
+            .ifEmpty { allSensors.take(gridLimit) }
 
         val itemListBuilder = ItemList.Builder()
-        for (pid in pids) {
-            val reading = readings[pid]
+        for (sensor in pinnedSensors) {
+            val reading = readings[sensor.id]
             val valueStr = reading?.let {
-                "${pid.formatValue(it.value, settings.useFahrenheit, settings.pressureUnit)} ${pid.displayUnit(settings.useFahrenheit, settings.pressureUnit)}"
-            } ?: "Нет данных"
+                "${sensor.formatValue(it.value, settings.useFahrenheit, settings.pressureUnit, isEng)} ${sensor.displayUnit(settings.useFahrenheit, settings.pressureUnit, isEng)}"
+            } ?: l10nCtx.getString(R.string.label_no_data)
 
             val gaugeIcon = CarGaugeBitmapFactory.createGaugeIcon(
-                pid = pid,
+                sensor = sensor,
                 reading = reading,
                 useFahrenheit = settings.useFahrenheit,
-                pressureUnit = settings.pressureUnit
+                pressureUnit = settings.pressureUnit,
+                isEnglish = isEng
             )
 
             itemListBuilder.addItem(
                 GridItem.Builder()
-                    .setTitle(pid.shortName)
+                    .setTitle(sensor.localizedShortName(isEng))
                     .setText(valueStr)
                     .setImage(gaugeIcon, GridItem.IMAGE_TYPE_LARGE)
                     .setOnClickListener {
-                        screenManager.push(SensorDetailCarScreen(carContext, pid))
+                        screenManager.push(SensorDetailCarScreen(carContext, sensor.id))
                     }
                     .build()
             )
@@ -168,16 +183,16 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
 
         if (!embedded) {
             val title = when (conn) {
-                is ObdConnectionState.Simulation -> "OBD2 Авто (Симуляция)"
+                is ObdConnectionState.Simulation -> l10nCtx.getString(R.string.car_aa_sim_title)
                 is ObdConnectionState.Connected -> "OBD2: ${conn.deviceName}"
-                else -> "OBD2 Авто"
+                else -> l10nCtx.getString(R.string.app_name)
             }
             val headerBuilder = Header.Builder()
                 .setTitle(title)
                 .setStartHeaderAction(Action.APP_ICON)
                 .addEndHeaderAction(
                     Action.Builder()
-                        .setTitle("Ошибки")
+                        .setTitle(l10nCtx.getString(R.string.nav_diagnostics))
                         .setOnClickListener {
                             screenManager.push(LegacySectionCarScreen(carContext, TAB_DTC))
                         }
@@ -185,7 +200,7 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
                 )
                 .addEndHeaderAction(
                     Action.Builder()
-                        .setTitle("OBD2")
+                        .setTitle(l10nCtx.getString(R.string.nav_obd2))
                         .setOnClickListener {
                             screenManager.push(LegacySectionCarScreen(carContext, TAB_CONNECT))
                         }
@@ -212,46 +227,74 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
 
     private fun buildAllSensorsListTemplate(embedded: Boolean): Template {
         val settings = repository.settings.value
+        val isEng = settings.isEnglish
+        val l10nCtx = AppLocalization.localizedContext(carContext, settings.appLanguage)
         val readings = repository.readings.value
+        val allSensors = repository.sensors.value
         val listLimit = getConstraintLimit(ConstraintManager.CONTENT_LIMIT_TYPE_LIST, 6)
 
         val templateBuilder = ListTemplate.Builder()
         var totalAdded = 0
 
-        for (category in SensorCategory.entries) {
+        if (surfaceController != null) {
+            val modeRowList = ItemList.Builder()
+                .addItem(
+                    Row.Builder()
+                        .setTitle(l10nCtx.getString(R.string.car_fullscreen_row_title))
+                        .addText(l10nCtx.getString(R.string.car_fullscreen_row_sub))
+                        .setOnClickListener {
+                            launchFullscreenCockpit()
+                        }
+                        .build()
+                )
+                .build()
+            templateBuilder.addSectionedList(
+                SectionedItemList.create(modeRowList, l10nCtx.getString(R.string.car_screen_mode_section))
+            )
+            totalAdded++
+        }
+
+        val orderedCategories = listOf(SensorCategory.CUSTOM) +
+            SensorCategory.entries.filter { it != SensorCategory.CUSTOM }
+
+        for (category in orderedCategories) {
             if (totalAdded >= listLimit) break
-            val categoryPids = ObdPid.entries.filter { it.category == category }
+            val categorySensors = allSensors.filter { it.category == category }
             val sectionList = ItemList.Builder()
             var sectionCount = 0
 
-            for (pid in categoryPids) {
+            for (sensor in categorySensors) {
                 if (totalAdded >= listLimit) break
-                val reading = readings[pid]
+                val reading = readings[sensor.id]
+                val unit = sensor.displayUnit(settings.useFahrenheit, settings.pressureUnit, isEng)
                 val formatted = reading?.let {
-                    "${pid.formatValue(it.value, settings.useFahrenheit, settings.pressureUnit)} ${pid.displayUnit(settings.useFahrenheit, settings.pressureUnit)}"
-                } ?: "-- ${pid.displayUnit(settings.useFahrenheit, settings.pressureUnit)}"
+                    "${sensor.formatValue(it.value, settings.useFahrenheit, settings.pressureUnit, isEng)} $unit"
+                } ?: "-- $unit"
 
                 val statusSuffix = when (reading?.alertLevel) {
-                    AlertLevel.CRITICAL -> " • КРИТИЧНО"
-                    AlertLevel.WARNING -> " • ВНИМАНИЕ"
-                    else -> if (pid in settings.androidAutoPids) " • На экране" else ""
+                    AlertLevel.CRITICAL -> l10nCtx.getString(R.string.car_crit_badge)
+                    AlertLevel.WARNING -> l10nCtx.getString(R.string.car_warn_badge)
+                    else -> if (sensor.id in settings.androidAutoSensorIds) {
+                        l10nCtx.getString(R.string.car_on_screen_badge)
+                    } else ""
                 }
 
                 val icon = CarGaugeBitmapFactory.createGaugeIcon(
-                    pid = pid,
+                    sensor = sensor,
                     reading = reading,
                     useFahrenheit = settings.useFahrenheit,
                     pressureUnit = settings.pressureUnit,
-                    sizePx = 128
+                    sizePx = 128,
+                    isEnglish = isEng
                 )
 
                 sectionList.addItem(
                     Row.Builder()
-                        .setTitle("${pid.displayName}: $formatted")
-                        .addText("PID ${pid.modeAndPid}$statusSuffix")
+                        .setTitle("${sensor.localizedDisplayName(isEng)}: $formatted")
+                        .addText("PID ${sensor.modeAndPid}$statusSuffix")
                         .setImage(icon, Row.IMAGE_TYPE_SMALL)
                         .setOnClickListener {
-                            screenManager.push(SensorDetailCarScreen(carContext, pid))
+                            screenManager.push(SensorDetailCarScreen(carContext, sensor.id))
                         }
                         .build()
                 )
@@ -261,7 +304,7 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
 
             if (sectionCount > 0) {
                 templateBuilder.addSectionedList(
-                    SectionedItemList.create(sectionList.build(), category.displayName)
+                    SectionedItemList.create(sectionList.build(), category.localizedName(isEng))
                 )
             }
         }
@@ -269,7 +312,7 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
         if (!embedded) {
             templateBuilder.setHeader(
                 Header.Builder()
-                    .setTitle("Все датчики OBD2")
+                    .setTitle(l10nCtx.getString(R.string.car_all_sensors_title))
                     .setStartHeaderAction(Action.BACK)
                     .build()
             )
@@ -279,12 +322,19 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
     }
 
     private fun buildDtcTemplate(embedded: Boolean): Template {
+        val settings = repository.settings.value
+        val isEng = settings.isEnglish
+        val l10nCtx = AppLocalization.localizedContext(carContext, settings.appLanguage)
         val dtc = repository.dtcState.value
         val listLimit = getConstraintLimit(ConstraintManager.CONTENT_LIMIT_TYPE_LIST, 6)
         val itemList = ItemList.Builder()
 
-        val milTitle = if (dtc.milOn) "Check Engine (MIL): АКТИВЕН" else "Check Engine (MIL): Норма"
-        val milSubtitle = dtc.statusMessage ?: "Нажмите «Считать» для опроса ЭБУ"
+        val milTitle = if (dtc.milOn) {
+            l10nCtx.getString(R.string.mil_active)
+        } else {
+            l10nCtx.getString(R.string.mil_normal)
+        }
+        val milSubtitle = dtc.statusMessage ?: l10nCtx.getString(R.string.dtc_scan_hint)
         itemList.addItem(
             Row.Builder()
                 .setTitle(milTitle)
@@ -294,8 +344,11 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
 
         itemList.addItem(
             Row.Builder()
-                .setTitle(if (dtc.isScanning) "Сканирование ЭБУ..." else "Считать ошибки ЭБУ (Mode 03)")
-                .addText("Повторный опрос блоков управления")
+                .setTitle(
+                    if (dtc.isScanning) l10nCtx.getString(R.string.car_dtc_scanning)
+                    else l10nCtx.getString(R.string.car_dtc_read_title)
+                )
+                .addText(l10nCtx.getString(R.string.car_dtc_read_sub))
                 .setOnClickListener {
                     repository.scanDtcs()
                 }
@@ -305,8 +358,8 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
         if (dtc.codes.isNotEmpty()) {
             itemList.addItem(
                 Row.Builder()
-                    .setTitle("Сбросить ошибки (Mode 04)")
-                    .addText("Очистить коды неисправностей и погасить MIL")
+                    .setTitle(l10nCtx.getString(R.string.car_dtc_clear_title))
+                    .addText(l10nCtx.getString(R.string.car_dtc_clear_sub))
                     .setOnClickListener {
                         screenManager.push(DtcConfirmClearCarScreen(carContext))
                     }
@@ -318,7 +371,7 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
         for (code in dtc.codes.take(remainingSlots)) {
             itemList.addItem(
                 Row.Builder()
-                    .setTitle("${code.code} • ${code.severity.label}")
+                    .setTitle("${code.code} • ${code.severity.localizedLabel(isEng)}")
                     .addText(code.description)
                     .build()
             )
@@ -328,7 +381,7 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
         if (!embedded) {
             builder.setHeader(
                 Header.Builder()
-                    .setTitle("Диагностика ЭБУ")
+                    .setTitle(l10nCtx.getString(R.string.car_diagnostics_title))
                     .setStartHeaderAction(Action.BACK)
                     .build()
             )
@@ -339,24 +392,34 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
     private fun buildConnectionPaneTemplate(embedded: Boolean): Template {
         val conn = repository.connectionState.value
         val settings = repository.settings.value
+        val isEng = settings.isEnglish
+        val l10nCtx = AppLocalization.localizedContext(carContext, settings.appLanguage)
+        val locale = if (isEng) Locale.US else Locale.forLanguageTag("ru-RU")
 
         val statusTitle = when (conn) {
-            is ObdConnectionState.Connected -> "Подключён: ${conn.deviceName}"
-            is ObdConnectionState.Connecting -> "Подключение: ${conn.deviceName}"
-            is ObdConnectionState.Simulation -> "РЕЖИМ СИМУЛЯЦИИ (без OBD2)"
-            is ObdConnectionState.Error -> "Ошибка подключения"
-            is ObdConnectionState.Disconnected -> "Адаптер не подключён"
+            is ObdConnectionState.Connected -> l10nCtx.getString(R.string.banner_connected_title, conn.deviceName)
+            is ObdConnectionState.Connecting -> l10nCtx.getString(R.string.banner_connecting_title, conn.deviceName)
+            is ObdConnectionState.Simulation -> l10nCtx.getString(R.string.banner_sim_title)
+            is ObdConnectionState.Error -> l10nCtx.getString(R.string.banner_error_title)
+            is ObdConnectionState.Disconnected -> l10nCtx.getString(R.string.banner_disconnected_title)
         }
 
         val statusDetail = when (conn) {
             is ObdConnectionState.Connected ->
-                "Протокол: ${conn.protocol} • ${String.format("%.1f", conn.pollingHz)} Гц"
+                l10nCtx.getString(
+                    R.string.car_conn_proto,
+                    conn.protocol,
+                    String.format(locale, "%.1f", conn.pollingHz)
+                )
             is ObdConnectionState.Connecting -> conn.step
             is ObdConnectionState.Simulation ->
-                "Тестовые данные датчиков • ${String.format("%.1f", conn.pollingHz)} Гц"
+                l10nCtx.getString(
+                    R.string.car_conn_sim_sub,
+                    String.format(locale, "%.1f", conn.pollingHz)
+                )
             is ObdConnectionState.Error -> conn.message
             is ObdConnectionState.Disconnected ->
-                "Выберите адаптер на телефоне или включите тест-режим"
+                l10nCtx.getString(R.string.car_conn_disconn_sub)
         }
 
         val paneBuilder = Pane.Builder()
@@ -368,15 +431,20 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
             )
             .addRow(
                 Row.Builder()
-                    .setTitle("Датчиков на экране: ${settings.androidAutoPids.size} из 6")
-                    .addText(settings.androidAutoPids.joinToString(", ") { it.shortName })
+                    .setTitle(l10nCtx.getString(R.string.car_sensors_count, settings.androidAutoSensorIds.size))
+                    .addText(
+                        settings.androidAutoSensorIds.joinToString(", ") { id ->
+                            repository.sensors.value.find { it.id == id }?.localizedShortName(isEng) ?: id
+                        }
+                    )
                     .build()
             )
 
+        var actionCount = 0
         if (!repository.bluetoothScanner.hasBluetoothPermissions()) {
             paneBuilder.addAction(
                 Action.Builder()
-                    .setTitle("Разрешить BT")
+                    .setTitle(l10nCtx.getString(R.string.car_allow_bt))
                     .setBackgroundColor(CarColor.PRIMARY)
                     .setOnClickListener {
                         carContext.requestPermissions(
@@ -385,39 +453,58 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
                     }
                     .build()
             )
+            actionCount++
         } else if (conn.isActiveTelemetry) {
             paneBuilder.addAction(
                 Action.Builder()
-                    .setTitle("Отключить")
+                    .setTitle(l10nCtx.getString(R.string.action_disconnect))
                     .setOnClickListener { repository.disconnect() }
                     .build()
             )
+            actionCount++
         } else {
             val lastAddr = settings.lastDeviceAddress
             val lastName = settings.lastDeviceName
-            if (lastAddr != null && lastName != null) {
+            val targetDevice = if (lastAddr != null && lastName != null) {
+                com.example.obd.model.BluetoothDeviceItem(
+                    name = lastName,
+                    address = lastAddr,
+                    transport = settings.lastTransport,
+                    isPaired = true,
+                    isLikelyObd = true
+                )
+            } else {
+                repository.bluetoothScanner.findPreferredPairedObdDevice()
+            }
+
+            if (targetDevice != null) {
                 paneBuilder.addAction(
                     Action.Builder()
-                        .setTitle("Подключить $lastName")
+                        .setTitle(l10nCtx.getString(R.string.car_connect_prefix, targetDevice.name))
                         .setBackgroundColor(CarColor.PRIMARY)
                         .setOnClickListener {
-                            repository.connectToDevice(
-                                com.example.obd.model.BluetoothDeviceItem(
-                                    name = lastName,
-                                    address = lastAddr,
-                                    transport = settings.lastTransport,
-                                    isPaired = true,
-                                    isLikelyObd = true
-                                )
-                            )
+                            repository.connectToDevice(targetDevice)
                         }
                         .build()
                 )
+                actionCount++
             }
+            if (actionCount < 2) {
+                paneBuilder.addAction(
+                    Action.Builder()
+                        .setTitle(l10nCtx.getString(R.string.action_sim_mode))
+                        .setOnClickListener { repository.startSimulationMode() }
+                        .build()
+                )
+                actionCount++
+            }
+        }
+
+        if (surfaceController != null && actionCount < 2) {
             paneBuilder.addAction(
                 Action.Builder()
-                    .setTitle("Тест-режим")
-                    .setOnClickListener { repository.startSimulationMode() }
+                    .setTitle(l10nCtx.getString(R.string.car_fullscreen_btn))
+                    .setOnClickListener { launchFullscreenCockpit() }
                     .build()
             )
         }
@@ -426,12 +513,26 @@ class ObdMainCarScreen(carContext: CarContext) : Screen(carContext) {
         if (!embedded) {
             builder.setHeader(
                 Header.Builder()
-                    .setTitle("Подключение OBD2")
+                    .setTitle(l10nCtx.getString(R.string.car_connection_title))
                     .setStartHeaderAction(Action.BACK)
                     .build()
             )
         }
         return builder.build()
+    }
+
+    private fun launchFullscreenCockpit() {
+        val controller = surfaceController ?: return
+        repository.setAndroidAutoDisplayMode(
+            com.example.obd.data.AndroidAutoDisplayMode.FULLSCREEN_COCKPIT
+        )
+        screenManager.push(
+            FullscreenCockpitCarScreen(
+                carContext = carContext,
+                surfaceController = controller,
+                isPushedOnTopOfMenu = true
+            )
+        )
     }
 
     private fun getConstraintLimit(limitType: Int, fallback: Int): Int {

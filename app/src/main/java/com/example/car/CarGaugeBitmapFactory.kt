@@ -9,29 +9,31 @@ import android.graphics.Typeface
 import androidx.car.app.model.CarIcon
 import androidx.core.graphics.drawable.IconCompat
 import com.example.obd.model.AlertLevel
-import com.example.obd.model.ObdPid
 import com.example.obd.model.PressureUnit
 import com.example.obd.model.SensorReading
+import com.example.obd.model.TelemetrySensor
 
 object CarGaugeBitmapFactory {
 
     fun createGaugeIcon(
-        pid: ObdPid,
+        sensor: TelemetrySensor,
         reading: SensorReading?,
         useFahrenheit: Boolean,
         pressureUnit: PressureUnit,
-        sizePx: Int = 220
+        sizePx: Int = 220,
+        isEnglish: Boolean = false
     ): CarIcon {
-        val bitmap = createGaugeBitmap(pid, reading, useFahrenheit, pressureUnit, sizePx)
+        val bitmap = createGaugeBitmap(sensor, reading, useFahrenheit, pressureUnit, sizePx, isEnglish)
         return CarIcon.Builder(IconCompat.createWithBitmap(bitmap)).build()
     }
 
     fun createGaugeBitmap(
-        pid: ObdPid,
+        sensor: TelemetrySensor,
         reading: SensorReading?,
         useFahrenheit: Boolean,
         pressureUnit: PressureUnit,
-        sizePx: Int = 220
+        sizePx: Int = 220,
+        isEnglish: Boolean = false
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -59,11 +61,12 @@ object CarGaugeBitmapFactory {
         val alertColor = when (reading?.alertLevel) {
             AlertLevel.CRITICAL -> Color.parseColor("#EF4444")
             AlertLevel.WARNING -> Color.parseColor("#FFB020")
-            else -> Color.parseColor("#00D4FF")
+            else -> if (sensor.isCustom) Color.parseColor("#38BDF8") else Color.parseColor("#00D4FF")
         }
 
+        val span = (sensor.maxRange - sensor.minRange).coerceAtLeast(0.1f)
         val fraction = if (reading != null) {
-            ((reading.value - pid.minRange) / (pid.maxRange - pid.minRange)).coerceIn(0f, 1f)
+            ((reading.value - sensor.minRange) / span).coerceIn(0f, 1f)
         } else {
             0f
         }
@@ -79,7 +82,7 @@ object CarGaugeBitmapFactory {
         }
 
         val valueText = reading?.let {
-            pid.formatValue(it.value, useFahrenheit, pressureUnit)
+            sensor.formatValue(it.value, useFahrenheit, pressureUnit, isEnglish)
         } ?: "--"
 
         val valuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -95,7 +98,7 @@ object CarGaugeBitmapFactory {
         val textY = center + (valuePaint.textSize * 0.22f)
         canvas.drawText(valueText, center, textY, valuePaint)
 
-        val unitText = pid.displayUnit(useFahrenheit, pressureUnit)
+        val unitText = sensor.displayUnit(useFahrenheit, pressureUnit, isEnglish)
         val unitPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = alertColor
             textAlign = Paint.Align.CENTER

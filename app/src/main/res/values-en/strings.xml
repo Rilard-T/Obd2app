@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OBD2 Auto</string>
+    <string name="car_app_description">Car OBD2 telemetry and gauges on your phone and Android Auto</string>
+
+    <!-- Navigation & Status -->
+    <string name="nav_gauges">Gauges</string>
+    <string name="nav_sensors">Sensors</string>
+    <string name="nav_diagnostics">Errors</string>
+    <string name="nav_obd2">OBD2</string>
+    <string name="status_pill_online">ONLINE</string>
+    <string name="status_pill_sim">SIMULATION</string>
+    <string name="status_pill_connecting">LINKING</string>
+    <string name="status_pill_error">ERROR</string>
+    <string name="status_pill_offline">OFFLINE</string>
+
+    <!-- Common -->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_close">Close</string>
+    <string name="action_back">Back</string>
+    <string name="action_done">Done</string>
+    <string name="action_test">Test</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_disconnect">Disconnect</string>
+    <string name="action_connect">Connect</string>
+    <string name="action_sim_mode">Demo Mode</string>
+    <string name="label_no_data">No data</string>
+    <string name="label_waiting_data">Waiting for data…</string>
+
+    <!-- Language Card -->
+    <string name="lang_card_title">Language / Язык</string>
+    <string name="lang_card_subtitle">Switches the UI, dial labels, units, and TTS voice alerts instantly without restarting.</string>
+    <string name="lang_option_system">Auto (System)</string>
+    <string name="lang_option_ru">Русский</string>
+    <string name="lang_option_en">English</string>
+
+    <!-- Connection Banner & Status -->
+    <string name="banner_connected_title">Connected: %1$s</string>
+    <string name="banner_connected_sub">%1$s • %2$s Hz • Android Auto ready</string>
+    <string name="banner_sim_title">SIMULATION MODE (No OBD2)</string>
+    <string name="banner_sim_sub">Simulated telemetry streaming to phone &amp; Android Auto (%1$s Hz)</string>
+    <string name="banner_connecting_title">Connecting: %1$s</string>
+    <string name="banner_error_title">OBD2 Connection Error</string>
+    <string name="banner_disconnected_title">OBD2 Adapter Disconnected</string>
+    <string name="banner_disconnected_sub">Connect an ELM327 via Bluetooth or start Demo Mode</string>
+    <string name="cd_connection_status">Connection status</string>
+
+    <!-- Dashboard Screen -->
+    <string name="cd_warning">Warning</string>
+    <string name="alert_threshold_exceeded">Sensor threshold exceeded</string>
+    <string name="cd_dismiss_alert">Dismiss alert</string>
+    <string name="quick_start_title">Telemetry Quick Start</string>
+    <string name="quick_start_desc">Connect a Bluetooth/BLE ELM327 adapter to your vehicle OBD2 port or turn on Demo Mode to preview Android Auto gauges.</string>
+    <string name="aa_strip_fullscreen">Android Auto: Full Screen</string>
+    <string name="aa_strip_grid_count">On Android Auto (%1$d/6)</string>
+    <string name="aa_open_preview">Open Preview</string>
+    <string name="cd_pin_aa_active">Pinned to Android Auto</string>
+    <string name="cd_pin_aa_inactive">Pin to Android Auto</string>
+    <string name="min_label_short">min %1$s</string>
+    <string name="max_label_short">max %1$s</string>
+
+    <!-- Sensors Screen -->
+    <string name="csv_read_error">Failed to read CSV file</string>
+    <string name="csv_import_success">Imported PIDs from Torque CSV: %1$d</string>
+    <string name="csv_import_empty">No valid Torque PIDs found in file</string>
+    <string name="custom_pid_card_title">Custom PIDs (Torque Pro style)</string>
+    <string name="custom_pid_card_desc">Add extended PIDs (Mode 21/22, ATSH headers, multi-frame ISO-TP &amp; A..P equations) manually or via CSV.</string>
+    <string name="pid_map_active">ECU map active: polling %1$d of %2$d built-in PIDs (%3$d supported by ECU)</string>
+    <string name="btn_add_pid">Add PID</string>
+    <string name="btn_import_csv">Import CSV</string>
+    <string name="poll_fast">Fast (5 Hz)</string>
+    <string name="poll_normal">Normal (3 Hz)</string>
+    <string name="cat_all_count">All (%1$d)</string>
+    <string name="not_in_ecu"> • Unsupported</string>
+    <string name="min_max_line">PID %1$s%2$s • Min %3$s / Max %4$s%5$s</string>
+    <string name="cd_alert_thresholds">Alert thresholds</string>
+    <string name="cd_edit_pid">Edit PID</string>
+    <string name="cd_delete_pid">Delete PID</string>
+    <string name="cd_pin_sensor_aa">Pin to Android Auto</string>
+
+    <!-- Diagnostics Screen -->
+    <string name="dtc_clear_title">Clear ECU Trouble Codes?</string>
+    <string name="dtc_clear_confirm_msg">Mode 04 will clear stored DTCs and turn off the Check Engine light. Perform only with engine off and ignition on.</string>
+    <string name="dtc_clear_car_msg">Mode 04 will clear trouble codes from ECU memory and turn off Check Engine. Only use while parked.</string>
+    <string name="dtc_clear_btn">Clear</string>
+    <string name="dtc_clear_mode04_btn">Clear (Mode 04)</string>
+    <string name="cd_mil_status">Check Engine status</string>
+    <string name="mil_active">Check Engine (MIL): ACTIVE</string>
+    <string name="mil_normal">Check Engine (MIL): Normal</string>
+    <string name="dtc_scan_hint">Tap \"Read Codes\" to scan ECU modules</string>
+    <string name="dtc_scan_btn">Read Codes</string>
+    <string name="dtc_active_codes">Active Trouble Codes (%1$d)</string>
+    <string name="report_card_title">Error Report &amp; Logs (.txt)</string>
+    <string name="report_entries_count">Session entries: %1$d</string>
+    <string name="report_logs_cleared">Logs cleared</string>
+    <string name="report_save_ok">Log file saved (.txt)</string>
+    <string name="report_save_fail">Failed to save log file</string>
+    <string name="report_desc">Includes Bluetooth/ELM327 steps, AT/OBD command traffic, and errors. Save as .txt or share via messenger/email.</string>
+    <string name="btn_export_txt">Export .txt</string>
+    <string name="btn_share_report">Share Report</string>
+    <string name="share_report_subject">OBD2 Auto — Error Report</string>
+    <string name="share_report_body">Diagnostic report and ELM327 session log attached (.txt).</string>
+    <string name="share_report_chooser">Share Error Report</string>
+    <string name="share_report_error">Share failed: %1$s</string>
+    <string name="log_empty">Log is empty</string>
+    <string name="scan_history_title">On-Device Scan History</string>
+    <string name="scan_history_empty">No saved scans yet. Connect an adapter and tap \"Read Codes\".</string>
+    <string name="scan_result_line">Result: %1$s</string>
+
+    <!-- Connection Screen -->
+    <string name="cd_aa_banner">Android Auto Car Display</string>
+    <string name="aa_active_title">Android Auto Ready</string>
+    <string name="aa_show_screen">Preview UI →</string>
+    <string name="aa_banner_desc">Connect your phone to the head unit or tap to preview the in-car cockpit interface.</string>
+    <string name="conn_sim_active">Simulation Mode Active</string>
+    <string name="conn_sim_sub">Live simulated telemetry across all 14 sensors</string>
+    <string name="bt_perm_title">Bluetooth Permission Required</string>
+    <string name="bt_perm_desc">Grant nearby Bluetooth device access to scan and connect to ELM327 Classic or BLE OBD2 adapters.</string>
+    <string name="bt_perm_btn">Allow Bluetooth</string>
+    <string name="bt_disabled_title">Bluetooth is Off</string>
+    <string name="bt_disabled_desc">Turn on Bluetooth on your phone to see paired ELM327 adapters and scan nearby.</string>
+    <string name="bt_enable_btn">Enable Bluetooth</string>
+    <string name="bt_adapters_header">OBD2 Adapters (Bluetooth)</string>
+    <string name="bt_all_chip">All BT</string>
+    <string name="cd_refresh_bt">Refresh device list</string>
+    <string name="btn_stop_scan">Stop</string>
+    <string name="btn_scan_elm">Scan ELM327</string>
+    <string name="bt_paired_header">Paired Devices (%1$d)</string>
+    <string name="bt_discovered_header">Found Nearby (%1$d)</string>
+    <string name="cd_obd_adapter_img">OBD2 adapter illustration</string>
+    <string name="bt_none_paired_title">No Paired Adapters Found</string>
+    <string name="bt_none_paired_desc">For ELM327 Classic, pair in phone Bluetooth settings first (PIN is usually 1234 or 0000), or tap \"Scan ELM327\".</string>
+    <string name="btn_open_bt_settings">Open Bluetooth Settings</string>
+    <string name="conn_error_header">Connection Error: %1$s</string>
+    <string name="btn_open_logs_report">Logs (.txt) &amp; Error Report</string>
+    <string name="cd_bt_device">Bluetooth device</string>
+    <string name="bt_status_active">Active</string>
+    <string name="bt_status_connect_short">Link</string>
+
+    <!-- Automation, Alerts & TTS -->
+    <string name="alerts_card_title">Automation &amp; Alerts</string>
+    <string name="auto_connect_title">Auto-connect on launch</string>
+    <string name="auto_connect_sub">Automatically connect to your last ELM327 in background and Android Auto</string>
+    <string name="voice_alerts_title">Voice Alerts (TTS)</string>
+    <string name="voice_alerts_sub">Speak warnings for critical coolant, ATF temp, and voltage drops</string>
+    <string name="tts_volume_label">Voice Volume</string>
+    <string name="tts_rate_label">Speech Rate</string>
+    <string name="tts_rate_slow">Slow (0.85x)</string>
+    <string name="tts_rate_normal">Normal (1.0x)</string>
+    <string name="tts_rate_fast">Fast (1.2x)</string>
+    <string name="tts_voice_system_default">System Voice (en-US)</string>
+    <string name="tts_voice_picker_label">TTS Announcer Voice</string>
+    <string name="tts_voice_choose">Select →</string>
+    <string name="aa_popup_alerts_title">Android Auto Popups</string>
+    <string name="aa_popup_alerts_sub">Show alert banner on car display when threshold is exceeded</string>
+    <string name="btn_test_alert">Test Alert (Voice + Banner)</string>
+    <string name="tts_dialog_title">Choose TTS Voice</string>
+    <string name="cd_refresh_voices">Refresh voice list</string>
+    <string name="tts_dialog_desc">Populated from Android system TTS voice packs installed on this phone (offline voices recommended).</string>
+    <string name="tts_voice_default_sub">System Android TTS default</string>
+    <string name="tts_voices_loading">Additional voices are still loading or unavailable on this device. Tap refresh or check Google Speech Services settings.</string>
+
+    <!-- ELM327 Benchmark -->
+    <string name="bench_title">ELM327 Adapter Benchmark</string>
+    <string name="bench_desc">Measures real bus polling rate (Hz), latency, and chip authenticity (v1.5 vs stripped v2.1 clone).</string>
+    <string name="bench_running">Benchmarking ELM327…</string>
+    <string name="bench_run_btn">Run Adapter Speed Test</string>
+    <string name="bench_need_conn_btn">Connect Adapter or Demo Mode</string>
+    <string name="bench_verdict">Verdict: %1$s</string>
+    <string name="bench_chip">Chip: %1$s • %2$s</string>
+    <string name="bench_latency">Latency: avg %1$d ms (min %2$d / max %3$d ms) • Up to %4$s Hz</string>
+    <string name="bench_yes">Yes</string>
+    <string name="bench_no">No</string>
+
+    <!-- Cockpit Layout Configurator -->
+    <string name="cockpit_pick_sensor_title">Select Sensor: %1$s</string>
+    <string name="cockpit_assign_title">Assign: %1$s</string>
+    <string name="cockpit_rename_title">Gauge Profile Name</string>
+    <string name="cockpit_rename_label">Name (up to 18 chars)</string>
+    <string name="cockpit_cfg_title">Android Auto Mode &amp; Gauges</string>
+    <string name="cockpit_cfg_desc">Choose full-screen analog dials or standard tab/grid tiles.</string>
+    <string name="cockpit_mode_fullscreen">Full Screen</string>
+    <string name="cockpit_mode_fullscreen_sub">3 dials + 4 strip</string>
+    <string name="cockpit_mode_grid">Grid (6 tiles)</string>
+    <string name="cockpit_mode_grid_sub">Standard tabs</string>
+    <string name="cockpit_profile_label">Gauge Profile (on steering wheel/head unit):</string>
+    <string name="cd_rename_profile">Rename profile</string>
+    <string name="cockpit_dials_header">Analog Dials (3 slots)</string>
+    <string name="cockpit_reset">Reset</string>
+    <string name="dial_left">Left</string>
+    <string name="dial_center">Center</string>
+    <string name="dial_right">Right</string>
+    <string name="dial_slot_label">Dial (%1$s)</string>
+    <string name="dial_left_full">Left Dial</string>
+    <string name="dial_center_full">Center Dial</string>
+    <string name="dial_right_full">Right Dial</string>
+    <string name="cockpit_strip_header">Bottom Telemetry Strip (4 slots)</string>
+    <string name="strip_slot_short">Slot %1$d</string>
+    <string name="strip_slot_full">Bottom Slot %1$d</string>
+    <string name="cockpit_open_preview_btn">Interactive Preview &amp; Setup</string>
+    <string name="cd_selected">Selected</string>
+
+    <!-- Android Auto Preview Dialog -->
+    <string name="aa_preview_title">Android Auto Screen Preview</string>
+    <string name="aa_preview_sub_full">Tap any dial or bottom slot to swap its sensor</string>
+    <string name="aa_preview_sub_grid">Standard Android Auto tabs &amp; tiles layout</string>
+    <string name="cd_close_preview">Close preview</string>
+    <string name="aa_preview_chip_full">Full Screen (Dials)</string>
+    <string name="aa_preview_chip_grid">Menu &amp; Tiles</string>
+    <string name="aa_btn_menu">Menu</string>
+    <string name="aa_btn_exit">Exit</string>
+    <string name="cd_aa_menu">Android Auto Menu</string>
+    <string name="aa_preview_live_note">Telemetry updates in real time</string>
+    <string name="aa_preview_sim_note">Enable Demo Mode to see live needle sweep</string>
+    <string name="aa_current_short">Current: %1$s</string>
+    <string name="aa_pin_add">Pin to AA</string>
+    <string name="aa_pin_remove">Unpin</string>
+
+    <!-- Custom PID Editor Dialog -->
+    <string name="pid_dlg_new">New PID (Torque Pro)</string>
+    <string name="pid_dlg_edit">Edit Custom PID</string>
+    <string name="cd_close_dialog">Close dialog</string>
+    <string name="pid_quick_presets">Quick Templates</string>
+    <string name="pid_name_label">Sensor Name *</string>
+    <string name="pid_name_hint">e.g. Transmission Fluid Temp</string>
+    <string name="pid_short_label">Short Name</string>
+    <string name="pid_short_hint">ATF °C</string>
+    <string name="pid_unit_label">Unit</string>
+    <string name="pid_unit_hint">°C, bar, V</string>
+    <string name="pid_hex_label">Mode &amp; PID (HEX) *</string>
+    <string name="pid_hex_hint">221E1C or 2101</string>
+    <string name="pid_hdr_label">ECU Header</string>
+    <string name="pid_hdr_hint">7E0 / 7E1 (opt.)</string>
+    <string name="pid_expected_reply">Expected ECU response prefix: %1$s</string>
+    <string name="pid_hex_help">Enter at least 4 HEX characters (e.g. 010C, 2101, 221E1C)</string>
+    <string name="pid_eq_label">Torque Equation *</string>
+    <string name="pid_eq_hint">((A*256)+B)/4 or SIGNED(A)</string>
+    <string name="pid_eq_help">Variables: A..P (up to 16 bytes, ISO-TP). Functions: SIGNED(x), ABS(x), MIN(a,b), MAX(a,b), INT(x), ROUND(x), SQRT(x), BIT(A,3)</string>
+    <string name="pid_probing">Polling ECU…</string>
+    <string name="pid_probe_btn">Probe ECU Response (Live)</string>
+    <string name="pid_probe_ok">ECU responded (%1$d ms)</string>
+    <string name="pid_probe_fail">ECU probe failed</string>
+    <string name="pid_use_bytes">Use Bytes</string>
+    <string name="pid_bytes_prefix">Bytes: %1$s</string>
+    <string name="pid_value_prefix">Value: %1$s %2$s</string>
+    <string name="pid_min_scale">Scale Min</string>
+    <string name="pid_max_scale">Scale Max</string>
+    <string name="pid_thresholds_toggle">Alert Thresholds (TTS &amp; Android Auto)</string>
+    <string name="alert_warn_high">High Warn</string>
+    <string name="alert_crit_high">High Crit</string>
+    <string name="alert_warn_low">Low Warn</string>
+    <string name="alert_crit_low">Low Crit</string>
+    <string name="hint_optional">opt.</string>
+    <string name="pid_decimals_label">Decimals:</string>
+    <string name="pid_decimals_chip">%1$d dec</string>
+    <string name="pid_eq_valid">Equation is valid</string>
+    <string name="pid_eq_invalid">Equation error</string>
+    <string name="pid_test_bytes_label">Test Bytes (HEX)</string>
+    <string name="pid_result_label">Result:</string>
+
+    <!-- Sensor Alert Config Dialog -->
+    <string name="alert_dlg_title">Alert Thresholds</string>
+    <string name="alert_dlg_enable">Enable alerts</string>
+    <string name="alert_hint_102">e.g. 102</string>
+    <string name="alert_hint_110">e.g. 110</string>
+    <string name="alert_hint_12_1">e.g. 12.1</string>
+    <string name="alert_hint_11_5">e.g. 11.5</string>
+
+    <!-- Foreground Service & Android Auto Car Screens -->
+    <string name="fg_channel_name">OBD2 Telemetry</string>
+    <string name="fg_channel_desc">Maintains live OBD2 adapter connection for Android Auto</string>
+    <string name="fg_notif_title">OBD2 Auto • Telemetry Active</string>
+    <string name="fg_connecting">Connecting to OBD2…</string>
+    <string name="fg_waiting">Waiting for OBD2 connection</string>
+    <string name="fg_sim_line">Demo: %1$s • %2$s • ECT %3$s</string>
+    <string name="fg_conn_line">%1$s: %2$s • %3$s • ECT %4$s</string>
+
+    <string name="car_aa_sim_title">OBD2 Auto (Demo)</string>
+    <string name="car_fullscreen_row_title">Full-Screen Gauges</string>
+    <string name="car_fullscreen_row_sub">3 analog dials + bottom strip</string>
+    <string name="car_screen_mode_section">Display Mode</string>
+    <string name="car_all_sensors_title">All OBD2 Sensors</string>
+    <string name="car_diagnostics_title">ECU Diagnostics</string>
+    <string name="car_connection_title">OBD2 Connection</string>
+    <string name="car_dtc_read_title">Read Trouble Codes (Mode 03)</string>
+    <string name="car_dtc_scanning">Scanning ECU…</string>
+    <string name="car_dtc_read_sub">Rescan vehicle control modules</string>
+    <string name="car_dtc_clear_title">Clear Codes (Mode 04)</string>
+    <string name="car_dtc_clear_sub">Clear DTCs and turn off MIL</string>
+    <string name="car_on_screen_badge"> • Pinned</string>
+    <string name="car_crit_badge"> • CRITICAL</string>
+    <string name="car_warn_badge"> • WARNING</string>
+    <string name="car_sensors_count">Pinned sensors: %1$d of 6</string>
+    <string name="car_allow_bt">Allow BT</string>
+    <string name="car_connect_prefix">Link %1$s</string>
+    <string name="car_fullscreen_btn">Full Screen</string>
+    <string name="car_alert_crit_sub">Critical sensor level</string>
+    <string name="car_alert_warn_sub">Sensor threshold exceeded</string>
+    <string name="car_detail_current">Current value: %1$s</string>
+    <string name="car_detail_minmax">Min: %1$s %2$s • Max: %3$s %2$s</string>
+    <string name="car_detail_range">Range: %1$d..%2$d %3$s</string>
+    <string name="car_detail_status">Status: %1$s</string>
+    <string name="car_status_crit">CRITICAL VALUE</string>
+    <string name="car_status_warn">Warning Level</string>
+    <string name="car_status_ok">Normal</string>
+    <string name="car_conn_proto">Protocol: %1$s • %2$s Hz</string>
+    <string name="car_conn_sim_sub">Simulated telemetry • %1$s Hz</string>
+    <string name="car_conn_disconn_sub">Select an adapter on your phone or enable Demo Mode</string>
+</resources>

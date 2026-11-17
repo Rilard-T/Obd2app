@@ -3,6 +3,7 @@ package com.example.obd.protocol
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothSocket
+import com.example.obd.data.ObdSessionLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -15,7 +16,8 @@ import java.util.UUID
 
 class BluetoothClassicObdTransport(
     private val bluetoothAdapter: BluetoothAdapter,
-    private val deviceAddress: String
+    private val deviceAddress: String,
+    private val logger: ObdSessionLogger? = null
 ) : ObdTransport {
 
     companion object {
@@ -33,6 +35,7 @@ class BluetoothClassicObdTransport(
     @SuppressLint("MissingPermission")
     override suspend fun connect() = withContext(Dispatchers.IO) {
         disconnect()
+        logger?.info("BT-SPP", "Подключение к $deviceAddress (RFCOMM SPP)...")
         val device = bluetoothAdapter.getRemoteDevice(deviceAddress)
         try {
             if (bluetoothAdapter.isDiscovering) {
@@ -41,24 +44,49 @@ class BluetoothClassicObdTransport(
         } catch (_: SecurityException) {
         }
 
-        val btSocket = try {
+        val secureSocket = try {
             device.createRfcommSocketToServiceRecord(SPP_UUID)
         } catch (e: SecurityException) {
+            logger?.error("BT-SPP", "Нет разрешения Bluetooth для SPP", e)
             throw IOException("Нет разрешения Bluetooth для подключения к адаптеру", e)
         }
 
-        try {
-            btSocket.connect()
-            socket = btSocket
-            inputStream = btSocket.inputStream
-            outputStream = btSocket.outputStream
-        } catch (e: Exception) {
+        val connectedSocket = try {
+            secureSocket.connect()
+            logger?.info("BT-SPP", "Установлено защищённое SPP соединение")
+            secureSocket
+        } catch (secureError: Exception) {
+            logger?.warn("BT-SPP", "Secure SPP не удалось (${secureError.message}), пробую Insecure RFCOMM...")
             try {
-                btSocket.close()
+                secureSocket.close()
             } catch (_: Exception) {
             }
-            throw IOException("Не удалось подключиться по SPP к $deviceAddress: ${e.message}", e)
+            val insecureSocket = try {
+                device.createInsecureRfcommSocketToServiceRecord(SPP_UUID)
+            } catch (secEx: SecurityException) {
+                logger?.error("BT-SPP", "Нет разрешения Bluetooth для Insecure SPP", secEx)
+                throw IOException("Нет разрешения Bluetooth для подключения к адаптеру", secEx)
+            }
+            try {
+                insecureSocket.connect()
+                logger?.info("BT-SPP", "Установлено Insecure RFCOMM соединение")
+                insecureSocket
+            } catch (insecureError: Exception) {
+                try {
+                    insecureSocket.close()
+                } catch (_: Exception) {
+                }
+                logger?.error("BT-SPP", "Не удалось подключиться по SPP к $deviceAddress", insecureError)
+                throw IOException(
+                    "Не удалось подключиться по SPP к $deviceAddress: ${insecureError.message ?: secureError.message}",
+                    insecureError
+                )
+            }
         }
+
+        socket = connectedSocket
+        inputStream = connectedSocket.inputStream
+        outputStream = connectedSocket.outputStream
     }
 
     override suspend fun sendCommand(command: String, timeoutMs: Long): String =
@@ -72,11 +100,12 @@ class BluetoothClassicObdTransport(
                     input.read()
                 }
 
+                logger?.tx(command)
                 val payload = (command.trim() + "\r").toByteArray(Charsets.US_ASCII)
                 out.write(payload)
                 out.flush()
 
-                withTimeout(timeoutMs) {
+                val response = withTimeout(timeoutMs) {
                     val sb = StringBuilder()
                     val buffer = ByteArray(128)
                     while (true) {
@@ -96,6 +125,8 @@ class BluetoothClassicObdTransport(
                     }
                     sb.toString()
                 }
+                logger?.rx(response)
+                response
             }
         }
 

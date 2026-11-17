@@ -9,6 +9,7 @@ import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.os.Build
+import com.example.obd.data.ObdSessionLogger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -25,7 +26,8 @@ import java.util.UUID
 class BleObdTransport(
     private val context: Context,
     private val bluetoothAdapter: BluetoothAdapter,
-    private val deviceAddress: String
+    private val deviceAddress: String,
+    private val logger: ObdSessionLogger? = null
 ) : ObdTransport {
 
     companion object {
@@ -58,9 +60,11 @@ class BleObdTransport(
         @SuppressLint("MissingPermission")
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
+                logger?.info("BT-BLE", "GATT подключён, поиск сервисов...")
                 gatt.discoverServices()
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 connectedFlag = false
+                logger?.warn("BT-BLE", "GATT отключён (status=$status)")
                 connectDeferred?.completeExceptionally(IOException("BLE устройство отключено (код $status)"))
                 responseDeferred?.completeExceptionally(IOException("BLE соединение разорвано"))
             }
@@ -69,12 +73,14 @@ class BleObdTransport(
         @SuppressLint("MissingPermission")
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             if (status != BluetoothGatt.GATT_SUCCESS) {
+                logger?.error("BT-BLE", "Ошибка обнаружения GATT сервисов ($status)")
                 connectDeferred?.completeExceptionally(IOException("Ошибка обнаружения BLE сервисов ($status)"))
                 return
             }
 
             val selected = findObdCharacteristics(gatt)
             if (selected == null) {
+                logger?.error("BT-BLE", "Не найдены GATT характеристики OBD2 (${gatt.services.size} сервисов)")
                 connectDeferred?.completeExceptionally(
                     IOException("Не найдены GATT характеристики OBD2 на устройстве")
                 )
@@ -83,6 +89,7 @@ class BleObdTransport(
 
             writeChar = selected.first
             notifyChar = selected.second
+            logger?.info("BT-BLE", "Выбраны GATT характеристики write=${selected.first.uuid}, notify=${selected.second.uuid}")
 
             val notify = selected.second
             gatt.setCharacteristicNotification(notify, true)
@@ -111,6 +118,7 @@ class BleObdTransport(
                 connectedFlag = true
                 connectDeferred?.complete(Unit)
             } else {
+                logger?.error("BT-BLE", "Ошибка записи CCCD дескриптора (status=$status)")
                 connectDeferred?.completeExceptionally(IOException("Не удалось включить уведомления BLE"))
             }
         }
@@ -141,6 +149,7 @@ class BleObdTransport(
             if (responseBuffer.contains('>')) {
                 val full = responseBuffer.toString()
                 responseBuffer.clear()
+                logger?.rx(full)
                 responseDeferred?.complete(full)
             }
         }
@@ -174,6 +183,7 @@ class BleObdTransport(
     @SuppressLint("MissingPermission")
     override suspend fun connect() = withContext(Dispatchers.IO) {
         disconnect()
+        logger?.info("BT-BLE", "BLE подключение к $deviceAddress...")
         val deferred = CompletableDeferred<Unit>()
         connectDeferred = deferred
 
@@ -181,6 +191,7 @@ class BleObdTransport(
         try {
             gatt = device.connectGatt(context, false, gattCallback)
         } catch (e: SecurityException) {
+            logger?.error("BT-BLE", "Нет разрешения Bluetooth для BLE", e)
             throw IOException("Нет разрешения Bluetooth для BLE подключения", e)
         }
 
@@ -201,6 +212,7 @@ class BleObdTransport(
             }
             responseDeferred = deferred
 
+            logger?.tx(command)
             val payload = (command.trim() + "\r").toByteArray(Charsets.US_ASCII)
             val writeOk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val writeType = if ((ch.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0) {
@@ -218,6 +230,7 @@ class BleObdTransport(
             }
 
             if (!writeOk) {
+                logger?.error("BT-BLE", "Не удалось отправить команду BLE ($command)")
                 throw IOException("Не удалось отправить команду BLE ($command)")
             }
 

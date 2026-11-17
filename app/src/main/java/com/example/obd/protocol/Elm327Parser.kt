@@ -91,9 +91,48 @@ object Elm327Parser {
     }
 
     /**
+     * Parses SAE J1979 Mode 01 supported PID bitmaps (`0100`, `0120`, `0140`, `0160`).
+     * Returns normalized modeAndPid strings like `"010C"`, `"010D"`, `"0120"`.
+     */
+    fun parseSupportedPidBitmap(basePid: Int, rawResponse: String): Set<String> {
+        if (isErrorResponse(rawResponse)) return emptySet()
+        val expectedHeader = String.format("41%02X", basePid and 0xFF)
+        val lines = rawResponse
+            .replace("\r", "\n")
+            .lines()
+            .map { it.uppercase().replace(Regex("[^0-9A-F]"), "") }
+            .filter { it.isNotEmpty() }
+
+        val supported = mutableSetOf<String>()
+        for (line in lines) {
+            val idx = line.indexOf(expectedHeader)
+            if (idx < 0) continue
+            val payload = line.substring(idx + expectedHeader.length)
+            if (payload.length < 8) continue
+            val b0 = payload.substring(0, 2).toIntOrNull(16) ?: continue
+            val b1 = payload.substring(2, 4).toIntOrNull(16) ?: continue
+            val b2 = payload.substring(4, 6).toIntOrNull(16) ?: continue
+            val b3 = payload.substring(6, 8).toIntOrNull(16) ?: continue
+            val mask = ((b0.toLong() and 0xFFL) shl 24) or
+                ((b1.toLong() and 0xFFL) shl 16) or
+                ((b2.toLong() and 0xFFL) shl 8) or
+                (b3.toLong() and 0xFFL)
+
+            for (bitOffset in 0 until 32) {
+                val bitIndex = 31 - bitOffset
+                if (((mask ushr bitIndex) and 1L) == 1L) {
+                    val pidNum = basePid + bitOffset + 1
+                    supported.add(String.format("01%02X", pidNum and 0xFF))
+                }
+            }
+        }
+        return supported
+    }
+
+    /**
      * Parses Mode 03 response (`43 ...`) into decoded SAE J2012 DTC codes.
      */
-    fun parseMode03Dtcs(rawResponse: String): List<DtcCode> {
+    fun parseMode03Dtcs(rawResponse: String, isEnglish: Boolean = false): List<DtcCode> {
         if (isErrorResponse(rawResponse)) return emptyList()
         val lines = rawResponse.replace("\r", "\n").lines()
         val collectedBytes = mutableListOf<Int>()
@@ -140,18 +179,18 @@ object Elm327Parser {
             }
         }
 
-        return codes.map { decodeDtc(it) }
+        return codes.map { decodeDtc(it, isEnglish) }
     }
 
-    fun decodeDtc(code: String): DtcCode {
+    fun decodeDtc(code: String, isEnglish: Boolean = false): DtcCode {
         val system = when (code.firstOrNull()) {
-            'P' -> "Силовая установка (ДВС / КПП)"
-            'C' -> "Шасси (ABS / ESP / Подвеска)"
-            'B' -> "Кузовная электроника"
-            'U' -> "Шина данных (CAN / Сеть)"
-            else -> "Электронный блок управления"
+            'P' -> if (isEnglish) "Powertrain (Engine / Transmission)" else "Силовая установка (ДВС / КПП)"
+            'C' -> if (isEnglish) "Chassis (ABS / ESP / Suspension)" else "Шасси (ABS / ESP / Подвеска)"
+            'B' -> if (isEnglish) "Body Electronics" else "Кузовная электроника"
+            'U' -> if (isEnglish) "Network / CAN Bus" else "Шина данных (CAN / Сеть)"
+            else -> if (isEnglish) "Electronic Control Unit" else "Электронный блок управления"
         }
-        val entry = knownDtcs[code]
+        val entry = if (isEnglish) knownDtcsEn[code] else knownDtcs[code]
         return if (entry != null) {
             DtcCode(
                 code = code,
@@ -160,10 +199,15 @@ object Elm327Parser {
                 severity = entry.second
             )
         } else {
+            val fallbackDesc = if (isEnglish) {
+                "Diagnostic trouble code $code ($system). ECU inspection required."
+            } else {
+                "Код неисправности $code ($system). Требуется проверка блока управления."
+            }
             DtcCode(
                 code = code,
                 system = system,
-                description = "Код неисправности $code ($system). Требуется проверка блока управления.",
+                description = fallbackDesc,
                 severity = if (code.startsWith("P03") || code.startsWith("P01")) {
                     DtcSeverity.MODERATE
                 } else {
@@ -174,28 +218,119 @@ object Elm327Parser {
     }
 
     private fun extractHexBytesAfterHeader(rawResponse: String, expectedHeader: String): List<Int>? {
-        val normalizedLines = rawResponse
+        return extractIsoTpPayload(expectedHeader, rawResponse)
+    }
+
+    /**
+     * Extracts payload bytes following [expectedHeader] across:
+     * 1) Standard single-frame replies (with or without CAN ID / PCI length byte)
+     * 2) ELM327 formatted ISO-TP multi-frame lines (`0: 62 1E 1C ...`, `1: ...`)
+     * 3) Raw CAN ISO-TP frames (`10 0E 62 1E 1C ...`, `21 ...`, `22 ...`)
+     */
+    fun extractIsoTpPayload(expectedHeader: String, rawResponse: String): List<Int>? {
+        if (isErrorResponse(rawResponse)) return null
+        val targetHeader = expectedHeader.uppercase().replace(Regex("[^0-9A-F]"), "")
+        if (targetHeader.length < 4) return null
+
+        val rawLines = rawResponse
             .replace("\r", "\n")
             .lines()
-            .map { it.uppercase().replace(Regex("[^0-9A-F]"), "") }
-            .filter { it.isNotEmpty() }
+            .map { it.trim() }
+            .filter {
+                it.isNotEmpty() &&
+                    !it.equals(">", ignoreCase = true) &&
+                    !it.equals("SEARCHING...", ignoreCase = true) &&
+                    !it.startsWith("BUS INIT", ignoreCase = true)
+            }
 
-        for (line in normalizedLines) {
-            val headerIdx = line.indexOf(expectedHeader.uppercase())
-            if (headerIdx >= 0) {
-                val payload = line.substring(headerIdx + expectedHeader.length)
-                if (payload.length < 2) continue
-                val bytes = mutableListOf<Int>()
-                var i = 0
-                while (i + 1 < payload.length) {
-                    val b = payload.substring(i, i + 2).toIntOrNull(16) ?: break
-                    bytes.add(b)
-                    i += 2
+        // Case A: ELM327 multi-frame with explicit indices `0: ...`, `1: ...`
+        val indexedRegex = Regex("""^([0-9A-Fa-f]{1,4})?:\s*([0-9A-Fa-f\s]+)$""")
+        val indexedLines = rawLines.mapNotNull { line ->
+            val match = indexedRegex.matchEntire(line) ?: return@mapNotNull null
+            val idxStr = match.groupValues[1]
+            val hex = match.groupValues[2].uppercase().replace(Regex("[^0-9A-F]"), "")
+            val idx = idxStr.toIntOrNull(16) ?: return@mapNotNull null
+            idx to hex
+        }
+        if (indexedLines.isNotEmpty()) {
+            val combined = indexedLines
+                .sortedBy { it.first }
+                .joinToString("") { it.second }
+            val hIdx = combined.indexOf(targetHeader)
+            if (hIdx >= 0) {
+                val payloadHex = combined.substring(hIdx + targetHeader.length)
+                val bytes = parseHexPairs(payloadHex)
+                if (bytes.isNotEmpty()) return bytes
+            }
+        }
+
+        // Case B: Raw CAN ISO-TP First Frame + Consecutive Frames (`1x xx ...` / `2y ...`)
+        val cleanedHexLines = rawLines.map { stripOptionalCanIdPrefix(it) }.filter { it.isNotEmpty() }
+        val firstFrameIndex = cleanedHexLines.indexOfFirst { line ->
+            line.length >= 8 && line.startsWith("1") && line.contains(targetHeader)
+        }
+        if (firstFrameIndex >= 0) {
+            val firstLine = cleanedHexLines[firstFrameIndex]
+            val hIdx = firstLine.indexOf(targetHeader)
+            val declaredTotalBytes = if (hIdx >= 4) {
+                firstLine.substring(0, 4).toIntOrNull(16)?.and(0x0FFF)
+            } else null
+
+            val assembled = StringBuilder(firstLine.substring(hIdx + targetHeader.length))
+            var expectedSeq = 1
+            for (lineIdx in (firstFrameIndex + 1) until cleanedHexLines.size) {
+                val nextLine = cleanedHexLines[lineIdx]
+                val seqChar = nextLine.firstOrNull()
+                if (seqChar == '2' && nextLine.length >= 4) {
+                    val seqNibble = nextLine.substring(1, 2).toIntOrNull(16)
+                    if (seqNibble == (expectedSeq and 0x0F)) {
+                        assembled.append(nextLine.substring(2))
+                        expectedSeq++
+                        continue
+                    }
                 }
+                break
+            }
+            val headerByteLen = targetHeader.length / 2
+            val maxPayloadBytes = declaredTotalBytes?.let { (it - headerByteLen).coerceAtLeast(1) }
+            val bytes = parseHexPairs(assembled.toString(), maxBytes = maxPayloadBytes)
+            if (bytes.isNotEmpty()) return bytes
+        }
+
+        // Case C: Single-frame line matching [expectedHeader] (optionally preceded by PCI byte)
+        for (hexLine in cleanedHexLines) {
+            val idx = hexLine.indexOf(targetHeader)
+            if (idx >= 0) {
+                val payload = hexLine.substring(idx + targetHeader.length)
+                val bytes = parseHexPairs(payload)
                 if (bytes.isNotEmpty()) return bytes
             }
         }
         return null
+    }
+
+    private fun stripOptionalCanIdPrefix(line: String): String {
+        val tokens = line.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (tokens.size >= 2) {
+            val first = tokens[0].uppercase()
+            // 11-bit CAN ID (3 hex chars, e.g. 7E8) or 29-bit CAN ID (8 hex chars, e.g. 18DAF110)
+            if (first.matches(Regex("^[0-9A-F]{3}$|^[0-9A-F]{8}$"))) {
+                return tokens.drop(1).joinToString("").uppercase().replace(Regex("[^0-9A-F]"), "")
+            }
+        }
+        return line.uppercase().replace(Regex("[^0-9A-F]"), "")
+    }
+
+    private fun parseHexPairs(hexPayload: String, maxBytes: Int? = null): List<Int> {
+        val bytes = mutableListOf<Int>()
+        var i = 0
+        while (i + 1 < hexPayload.length) {
+            if (maxBytes != null && bytes.size >= maxBytes) break
+            val b = hexPayload.substring(i, i + 2).toIntOrNull(16) ?: break
+            bytes.add(b)
+            i += 2
+        }
+        return bytes
     }
 
     private val knownDtcs: Map<String, Pair<String, DtcSeverity>> = mapOf(
@@ -224,5 +359,33 @@ object Elm327Parser {
         "U0100" to ("Потеря связи с блоком управления двигателем (ECM/PCM)" to DtcSeverity.CRITICAL),
         "U0121" to ("Потеря связи с модулем ABS" to DtcSeverity.CRITICAL),
         "C0035" to ("Неисправность датчика скорости левого переднего колеса" to DtcSeverity.MODERATE)
+    )
+
+    private val knownDtcsEn: Map<String, Pair<String, DtcSeverity>> = mapOf(
+        "P0100" to ("Mass or Volume Air Flow (MAF) Circuit Malfunction" to DtcSeverity.MODERATE),
+        "P0101" to ("Mass Air Flow (MAF) Sensor Range/Performance Problem" to DtcSeverity.MODERATE),
+        "P0106" to ("Manifold Absolute Pressure (MAP) Sensor Range/Performance" to DtcSeverity.MODERATE),
+        "P0113" to ("Intake Air Temperature (IAT) Sensor High Input" to DtcSeverity.INFO),
+        "P0118" to ("Engine Coolant Temperature (ECT) Sensor High Input" to DtcSeverity.CRITICAL),
+        "P0128" to ("Coolant Thermostat Below Thermostat Regulating Temperature" to DtcSeverity.INFO),
+        "P0130" to ("O2 Sensor Circuit Malfunction (Bank 1 Sensor 1)" to DtcSeverity.MODERATE),
+        "P0135" to ("O2 Sensor Heater Circuit Malfunction (Bank 1 Sensor 1)" to DtcSeverity.INFO),
+        "P0171" to ("System Too Lean (Bank 1)" to DtcSeverity.MODERATE),
+        "P0172" to ("System Too Rich (Bank 1)" to DtcSeverity.MODERATE),
+        "P0300" to ("Random/Multiple Cylinder Misfire Detected" to DtcSeverity.CRITICAL),
+        "P0301" to ("Cylinder 1 Misfire Detected" to DtcSeverity.CRITICAL),
+        "P0302" to ("Cylinder 2 Misfire Detected" to DtcSeverity.CRITICAL),
+        "P0303" to ("Cylinder 3 Misfire Detected" to DtcSeverity.CRITICAL),
+        "P0304" to ("Cylinder 4 Misfire Detected" to DtcSeverity.CRITICAL),
+        "P0335" to ("Crankshaft Position (CKP) Sensor A Circuit Malfunction" to DtcSeverity.CRITICAL),
+        "P0340" to ("Camshaft Position (CMP) Sensor A Circuit Malfunction" to DtcSeverity.MODERATE),
+        "P0420" to ("Catalyst System Efficiency Below Threshold (Bank 1)" to DtcSeverity.INFO),
+        "P0442" to ("Evaporative Emission (EVAP) System Small Leak Detected" to DtcSeverity.INFO),
+        "P0500" to ("Vehicle Speed Sensor (VSS) Malfunction" to DtcSeverity.MODERATE),
+        "P0505" to ("Idle Air Control System Malfunction" to DtcSeverity.MODERATE),
+        "P0562" to ("System Voltage Low" to DtcSeverity.MODERATE),
+        "U0100" to ("Lost Communication With ECM/PCM" to DtcSeverity.CRITICAL),
+        "U0121" to ("Lost Communication With Anti-Lock Brake System (ABS) Module" to DtcSeverity.CRITICAL),
+        "C0035" to ("Left Front Wheel Speed Sensor Circuit Malfunction" to DtcSeverity.MODERATE)
     )
 }

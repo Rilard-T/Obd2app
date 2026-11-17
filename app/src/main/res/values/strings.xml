@@ -1,4 +1,310 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">OBD2 Авто</string>
     <string name="car_app_description">Телеметрия и датчики автомобиля через OBD2 в Android Auto</string>
+
+    <!-- Navigation & Status -->
+    <string name="nav_gauges">Приборы</string>
+    <string name="nav_sensors">Датчики</string>
+    <string name="nav_diagnostics">Ошибки</string>
+    <string name="nav_obd2">OBD2</string>
+    <string name="status_pill_online">ONLINE</string>
+    <string name="status_pill_sim">СИМУЛЯЦИЯ</string>
+    <string name="status_pill_connecting">ПОИСК</string>
+    <string name="status_pill_error">ОШИБКА</string>
+    <string name="status_pill_offline">ОФЛАЙН</string>
+
+    <!-- Common -->
+    <string name="action_cancel">Отмена</string>
+    <string name="action_save">Сохранить</string>
+    <string name="action_close">Закрыть</string>
+    <string name="action_back">Назад</string>
+    <string name="action_done">Готово</string>
+    <string name="action_test">Проверить</string>
+    <string name="action_clear">Очистить</string>
+    <string name="action_disconnect">Отключить</string>
+    <string name="action_connect">Подключить</string>
+    <string name="action_sim_mode">Тест-режим</string>
+    <string name="label_no_data">Нет данных</string>
+    <string name="label_waiting_data">Ожидание данных…</string>
+
+    <!-- Language Card -->
+    <string name="lang_card_title">Язык / Language</string>
+    <string name="lang_card_subtitle">Переключает интерфейс приложения, приборы и голосовые оповещения TTS без перезапуска.</string>
+    <string name="lang_option_system">Авто (Система)</string>
+    <string name="lang_option_ru">Русский</string>
+    <string name="lang_option_en">English</string>
+
+    <!-- Connection Banner & Status -->
+    <string name="banner_connected_title">Подключён: %1$s</string>
+    <string name="banner_connected_sub">%1$s • %2$s Гц • Android Auto готов</string>
+    <string name="banner_sim_title">РЕЖИМ СИМУЛЯЦИИ (без OBD2)</string>
+    <string name="banner_sim_sub">Тестовые данные транслируются на телефон и Android Auto (%1$s Гц)</string>
+    <string name="banner_connecting_title">Подключение: %1$s</string>
+    <string name="banner_error_title">Ошибка подключения OBD2</string>
+    <string name="banner_disconnected_title">Адаптер OBD2 не подключён</string>
+    <string name="banner_disconnected_sub">Подключите ELM327 по Bluetooth или запустите тест-режим</string>
+    <string name="cd_connection_status">Статус подключения</string>
+
+    <!-- Dashboard Screen -->
+    <string name="cd_warning">Предупреждение</string>
+    <string name="alert_threshold_exceeded">Порог датчика превышен</string>
+    <string name="cd_dismiss_alert">Скрыть предупреждение</string>
+    <string name="quick_start_title">Быстрый старт телеметрии</string>
+    <string name="quick_start_desc">Подключите Bluetooth/BLE ELM327 адаптер к разъёму OBD2 автомобиля или включите режим симуляции для проверки отображения в Android Auto.</string>
+    <string name="aa_strip_fullscreen">Android Auto: Полный экран</string>
+    <string name="aa_strip_grid_count">На экране Android Auto (%1$d/6)</string>
+    <string name="aa_open_preview">Открыть макет</string>
+    <string name="cd_pin_aa_active">Закреплено на экране Android Auto</string>
+    <string name="cd_pin_aa_inactive">Добавить на экран Android Auto</string>
+    <string name="min_label_short">min %1$s</string>
+    <string name="max_label_short">max %1$s</string>
+
+    <!-- Sensors Screen -->
+    <string name="csv_read_error">Не удалось прочитать CSV файл</string>
+    <string name="csv_import_success">Импортировано PID из Torque CSV: %1$d</string>
+    <string name="csv_import_empty">Подходящие Torque PID в файле не найдены</string>
+    <string name="custom_pid_card_title">Сторонние PID (как в Torque Pro)</string>
+    <string name="custom_pid_card_desc">Добавляйте расширенные PID (Mode 21/22, заголовки ATSH, многокадровые ISO-TP и формулы A..P) вручную или из CSV.</string>
+    <string name="pid_map_active">Карта ЭБУ активна: опрашиваются %1$d из %2$d встроенных PID (всего в ЭБУ: %3$d)</string>
+    <string name="btn_add_pid">Добавить PID</string>
+    <string name="btn_import_csv">Импорт CSV</string>
+    <string name="poll_fast">Быстро (5 Гц)</string>
+    <string name="poll_normal">Норма (3 Гц)</string>
+    <string name="cat_all_count">Все (%1$d)</string>
+    <string name="not_in_ecu"> • Нет в ЭБУ</string>
+    <string name="min_max_line">PID %1$s%2$s • Мин %3$s / Макс %4$s%5$s</string>
+    <string name="cd_alert_thresholds">Пороги тревоги</string>
+    <string name="cd_edit_pid">Редактировать PID</string>
+    <string name="cd_delete_pid">Удалить PID</string>
+    <string name="cd_pin_sensor_aa">Закрепить на экране Android Auto</string>
+
+    <!-- Diagnostics Screen -->
+    <string name="dtc_clear_title">Сбросить ошибки ЭБУ?</string>
+    <string name="dtc_clear_confirm_msg">Команда Mode 04 удалит сохранённые коды неисправностей и погасит лампу Check Engine. Выполняйте только на заглушенном двигателе при включённом зажигании.</string>
+    <string name="dtc_clear_car_msg">Команда Mode 04 удалит коды неисправностей из памяти ЭБУ и погасит индикатор Check Engine. Выполнять только на остановленном автомобиле.</string>
+    <string name="dtc_clear_btn">Сбросить</string>
+    <string name="dtc_clear_mode04_btn">Сбросить (Mode 04)</string>
+    <string name="cd_mil_status">Состояние Check Engine</string>
+    <string name="mil_active">Check Engine (MIL): АКТИВЕН</string>
+    <string name="mil_normal">Check Engine (MIL): Норма</string>
+    <string name="dtc_scan_hint">Нажмите «Считать ошибки» для опроса блоков ЭБУ</string>
+    <string name="dtc_scan_btn">Считать ошибки</string>
+    <string name="dtc_active_codes">Активные коды неисправностей (%1$d)</string>
+    <string name="report_card_title">Отчёт об ошибке и логи (.txt)</string>
+    <string name="report_entries_count">Записей в сессии: %1$d</string>
+    <string name="report_logs_cleared">Логи очищены</string>
+    <string name="report_save_ok">Файл лога успешно сохранён (.txt)</string>
+    <string name="report_save_fail">Не удалось сохранить файл лога</string>
+    <string name="report_desc">В отчёт включаются шаги Bluetooth/ELM327, обмен AT/OBD-командами и ошибки. Сохраните файл в .txt или отправьте через мессенджер/почту.</string>
+    <string name="btn_export_txt">Выгрузить .txt</string>
+    <string name="btn_share_report">Отправить отчёт</string>
+    <string name="share_report_subject">OBD2 Авто — отчёт об ошибке</string>
+    <string name="share_report_body">Диагностический отчёт и журнал ELM327 во вложении (.txt).</string>
+    <string name="share_report_chooser">Отправить отчёт об ошибке</string>
+    <string name="share_report_error">Ошибка отправки: %1$s</string>
+    <string name="log_empty">Лог пуст</string>
+    <string name="scan_history_title">История проверок на устройстве</string>
+    <string name="scan_history_empty">Сохранённых сканирований пока нет. Подключите адаптер и нажмите «Считать ошибки».</string>
+    <string name="scan_result_line">Результат: %1$s</string>
+
+    <!-- Connection Screen -->
+    <string name="cd_aa_banner">Экран автомобиля Android Auto</string>
+    <string name="aa_active_title">Android Auto активен</string>
+    <string name="aa_show_screen">Показать экран →</string>
+    <string name="aa_banner_desc">Подключите телефон к магнитоле или нажмите, чтобы посмотреть интерфейс автомобиля.</string>
+    <string name="conn_sim_active">Режим симуляции активен</string>
+    <string name="conn_sim_sub">Тестовые показания всех 14 датчиков</string>
+    <string name="bt_perm_title">Требуется разрешение Bluetooth</string>
+    <string name="bt_perm_desc">Для поиска и подключения к OBD2-сканеру (ELM327 Classic или BLE) предоставьте доступ к ближайшим Bluetooth-устройствам.</string>
+    <string name="bt_perm_btn">Разрешить Bluetooth</string>
+    <string name="bt_disabled_title">Bluetooth выключен</string>
+    <string name="bt_disabled_desc">Включите Bluetooth на телефоне, чтобы увидеть сопряжённые ELM327-адаптеры и выполнить поиск.</string>
+    <string name="bt_enable_btn">Включить Bluetooth</string>
+    <string name="bt_adapters_header">OBD2 адаптеры (Bluetooth)</string>
+    <string name="bt_all_chip">Все BT</string>
+    <string name="cd_refresh_bt">Обновить список устройств</string>
+    <string name="btn_stop_scan">Остановить</string>
+    <string name="btn_scan_elm">Поиск ELM327</string>
+    <string name="bt_paired_header">Сопряжённые устройства (%1$d)</string>
+    <string name="bt_discovered_header">Найденные поблизости (%1$d)</string>
+    <string name="cd_obd_adapter_img">Иллюстрация адаптера OBD2</string>
+    <string name="bt_none_paired_title">Сопряжённые адаптеры не найдены</string>
+    <string name="bt_none_paired_desc">Для ELM327 Classic выполните сопряжение в настройках Bluetooth телефона (PIN обычно 1234 или 0000), либо нажмите «Поиск ELM327».</string>
+    <string name="btn_open_bt_settings">Открыть настройки Bluetooth</string>
+    <string name="conn_error_header">Ошибка подключения: %1$s</string>
+    <string name="btn_open_logs_report">Логи (.txt) и отчёт об ошибке</string>
+    <string name="cd_bt_device">Bluetooth устройство</string>
+    <string name="bt_status_active">Активен</string>
+    <string name="bt_status_connect_short">Подкл.</string>
+
+    <!-- Automation, Alerts & TTS -->
+    <string name="alerts_card_title">Автоматика и оповещения</string>
+    <string name="auto_connect_title">Автоподключение при запуске</string>
+    <string name="auto_connect_sub">Автоматически подключаться к последнему ELM327 в фоне и в Android Auto</string>
+    <string name="voice_alerts_title">Голосовые оповещения (TTS)</string>
+    <string name="voice_alerts_sub">Озвучивать критическую температуру ОЖ, АКПП и падение напряжения</string>
+    <string name="tts_volume_label">Громкость голоса</string>
+    <string name="tts_rate_label">Скорость речи</string>
+    <string name="tts_rate_slow">Медл. (0.85x)</string>
+    <string name="tts_rate_normal">Норма (1.0x)</string>
+    <string name="tts_rate_fast">Быстро (1.2x)</string>
+    <string name="tts_voice_system_default">Системный голос (ru-RU)</string>
+    <string name="tts_voice_picker_label">Диктор (голос TTS)</string>
+    <string name="tts_voice_choose">Выбрать →</string>
+    <string name="aa_popup_alerts_title">Тревоги в Android Auto</string>
+    <string name="aa_popup_alerts_sub">Всплывающее предупреждение на экране автомобиля при превышении порога</string>
+    <string name="btn_test_alert">Проверить оповещение (Голос + Баннер)</string>
+    <string name="tts_dialog_title">Выбор голоса TTS</string>
+    <string name="cd_refresh_voices">Обновить список голосов</string>
+    <string name="tts_dialog_desc">Список формируется из установленных в системе Android голосовых пакетов (рекомендуются офлайн-голоса).</string>
+    <string name="tts_voice_default_sub">По умолчанию из настроек Android</string>
+    <string name="tts_voices_loading">Дополнительные голоса ещё загружаются или не найдены на устройстве. Нажмите кнопку обновления или проверьте системные настройки синтеза речи Google.</string>
+
+    <!-- ELM327 Benchmark -->
+    <string name="bench_title">Диагностика адаптера ELM327</string>
+    <string name="bench_desc">Проверка реальной частоты (Гц), задержки шины и подлинности чипа (v1.5 / клон v2.1).</string>
+    <string name="bench_running">Тестирование ELM327…</string>
+    <string name="bench_run_btn">Запустить тест скорости адаптера</string>
+    <string name="bench_need_conn_btn">Подключите адаптер или Тест-режим</string>
+    <string name="bench_verdict">Вердикт: %1$s</string>
+    <string name="bench_chip">Чип: %1$s • %2$s</string>
+    <string name="bench_latency">Задержка: ср. %1$d мс (мин %2$d / макс %3$d мс) • До %4$s Гц</string>
+    <string name="bench_yes">Да</string>
+    <string name="bench_no">Нет</string>
+
+    <!-- Cockpit Layout Configurator -->
+    <string name="cockpit_pick_sensor_title">Выберите датчик: %1$s</string>
+    <string name="cockpit_assign_title">Назначить: %1$s</string>
+    <string name="cockpit_rename_title">Название профиля приборов</string>
+    <string name="cockpit_rename_label">Название (до 18 симв.)</string>
+    <string name="cockpit_cfg_title">Режим и приборы в Android Auto</string>
+    <string name="cockpit_cfg_desc">Выберите полноэкранную панель со стрелками или стандартную сетку.</string>
+    <string name="cockpit_mode_fullscreen">Во весь экран</string>
+    <string name="cockpit_mode_fullscreen_sub">3 стрелки + 4 снизу</string>
+    <string name="cockpit_mode_grid">Плитки (6 шт.)</string>
+    <string name="cockpit_mode_grid_sub">Обычные вкладки</string>
+    <string name="cockpit_profile_label">Профиль приборов (на руле/экране):</string>
+    <string name="cd_rename_profile">Переименовать профиль</string>
+    <string name="cockpit_dials_header">Стрелочные приборы (3 шт.)</string>
+    <string name="cockpit_reset">Сброс</string>
+    <string name="dial_left">Левый</string>
+    <string name="dial_center">Центр</string>
+    <string name="dial_right">Правый</string>
+    <string name="dial_slot_label">Прибор (%1$s)</string>
+    <string name="dial_left_full">Левый прибор</string>
+    <string name="dial_center_full">Центр. прибор</string>
+    <string name="dial_right_full">Правый прибор</string>
+    <string name="cockpit_strip_header">Нижняя строка показателей (4 шт.)</string>
+    <string name="strip_slot_short">Слот %1$d</string>
+    <string name="strip_slot_full">Нижний слот %1$d</string>
+    <string name="cockpit_open_preview_btn">Предпросмотр и настройка на макете</string>
+    <string name="cd_selected">Выбрано</string>
+
+    <!-- Android Auto Preview Dialog -->
+    <string name="aa_preview_title">Макет экрана Android Auto</string>
+    <string name="aa_preview_sub_full">Нажмите на любой прибор для замены датчика</string>
+    <string name="aa_preview_sub_grid">Режим стандартных вкладок и плиток</string>
+    <string name="cd_close_preview">Закрыть предпросмотр</string>
+    <string name="aa_preview_chip_full">Полный экран (Стрелки)</string>
+    <string name="aa_preview_chip_grid">Меню и плитки</string>
+    <string name="aa_btn_menu">Меню</string>
+    <string name="aa_btn_exit">Выход</string>
+    <string name="cd_aa_menu">Меню Android Auto</string>
+    <string name="aa_preview_live_note">Данные обновляются в реальном времени</string>
+    <string name="aa_preview_sim_note">Включите «Тест-режим», чтобы увидеть движение стрелок</string>
+    <string name="aa_current_short">Текущее: %1$s</string>
+    <string name="aa_pin_add">На приборы</string>
+    <string name="aa_pin_remove">Убрать с приборов</string>
+
+    <!-- Custom PID Editor Dialog -->
+    <string name="pid_dlg_new">Новый PID (Torque Pro)</string>
+    <string name="pid_dlg_edit">Редактировать PID</string>
+    <string name="cd_close_dialog">Закрыть окно</string>
+    <string name="pid_quick_presets">Быстрые шаблоны</string>
+    <string name="pid_name_label">Название датчика *</string>
+    <string name="pid_name_hint">Например: Температура АКПП</string>
+    <string name="pid_short_label">Короткое имя</string>
+    <string name="pid_short_hint">АКПП °C</string>
+    <string name="pid_unit_label">Ед. изм.</string>
+    <string name="pid_unit_hint">°C, бар, В</string>
+    <string name="pid_hex_label">Mode и PID (HEX) *</string>
+    <string name="pid_hex_hint">221E1C или 2101</string>
+    <string name="pid_hdr_label">Заголовок ЭБУ</string>
+    <string name="pid_hdr_hint">7E0 / 7E1 (опц.)</string>
+    <string name="pid_expected_reply">Ожидаемый префикс ответа ЭБУ: %1$s</string>
+    <string name="pid_hex_help">Введите минимум 4 HEX-символа (например 010C, 2101, 221E1C)</string>
+    <string name="pid_eq_label">Формула Torque *</string>
+    <string name="pid_eq_hint">((A*256)+B)/4 или SIGNED(A)</string>
+    <string name="pid_eq_help">Переменные: A..P (до 16 байт, поддержка ISO-TP). Функции: SIGNED(x), ABS(x), MIN(a,b), MAX(a,b), INT(x), ROUND(x), SQRT(x), BIT(A,3)</string>
+    <string name="pid_probing">Опрос ЭБУ…</string>
+    <string name="pid_probe_btn">Проверить ответ ЭБУ (Live)</string>
+    <string name="pid_probe_ok">Ответ ЭБУ получен (%1$d мс)</string>
+    <string name="pid_probe_fail">Ошибка опроса ЭБУ</string>
+    <string name="pid_use_bytes">В тест байтов</string>
+    <string name="pid_bytes_prefix">Байты: %1$s</string>
+    <string name="pid_value_prefix">Значение: %1$s %2$s</string>
+    <string name="pid_min_scale">Мин. шкалы</string>
+    <string name="pid_max_scale">Макс. шкалы</string>
+    <string name="pid_thresholds_toggle">Пороги тревоги (голос и Android Auto)</string>
+    <string name="alert_warn_high">Макс. внимание</string>
+    <string name="alert_crit_high">Макс. критич.</string>
+    <string name="alert_warn_low">Мин. внимание</string>
+    <string name="alert_crit_low">Мин. критич.</string>
+    <string name="hint_optional">опц.</string>
+    <string name="pid_decimals_label">Точность:</string>
+    <string name="pid_decimals_chip">%1$d зн.</string>
+    <string name="pid_eq_valid">Формула корректна</string>
+    <string name="pid_eq_invalid">Ошибка в формуле</string>
+    <string name="pid_test_bytes_label">Тест байтов (HEX)</string>
+    <string name="pid_result_label">Результат:</string>
+
+    <!-- Sensor Alert Config Dialog -->
+    <string name="alert_dlg_title">Пороги тревоги</string>
+    <string name="alert_dlg_enable">Включить предупреждения</string>
+    <string name="alert_hint_102">напр. 102</string>
+    <string name="alert_hint_110">напр. 110</string>
+    <string name="alert_hint_12_1">напр. 12.1</string>
+    <string name="alert_hint_11_5">напр. 11.5</string>
+
+    <!-- Foreground Service & Android Auto Car Screens -->
+    <string name="fg_channel_name">Телеметрия OBD2</string>
+    <string name="fg_channel_desc">Поддержание связи с OBD2 адаптером для Android Auto</string>
+    <string name="fg_notif_title">OBD2 Авто • Телеметрия активна</string>
+    <string name="fg_connecting">Подключение к OBD2…</string>
+    <string name="fg_waiting">Ожидание подключения OBD2</string>
+    <string name="fg_sim_line">Симуляция: %1$s • %2$s • ОЖ %3$s</string>
+    <string name="fg_conn_line">%1$s: %2$s • %3$s • ОЖ %4$s</string>
+
+    <string name="car_aa_sim_title">OBD2 Авто (Симуляция)</string>
+    <string name="car_fullscreen_row_title">Приборы во весь экран</string>
+    <string name="car_fullscreen_row_sub">3 стрелочных шкалы и нижняя панель</string>
+    <string name="car_screen_mode_section">Режим экрана</string>
+    <string name="car_all_sensors_title">Все датчики OBD2</string>
+    <string name="car_diagnostics_title">Диагностика ЭБУ</string>
+    <string name="car_connection_title">Подключение OBD2</string>
+    <string name="car_dtc_read_title">Считать ошибки ЭБУ (Mode 03)</string>
+    <string name="car_dtc_scanning">Сканирование ЭБУ…</string>
+    <string name="car_dtc_read_sub">Повторный опрос блоков управления</string>
+    <string name="car_dtc_clear_title">Сбросить ошибки (Mode 04)</string>
+    <string name="car_dtc_clear_sub">Очистить коды неисправностей и погасить MIL</string>
+    <string name="car_on_screen_badge"> • На экране</string>
+    <string name="car_crit_badge"> • КРИТИЧНО</string>
+    <string name="car_warn_badge"> • ВНИМАНИЕ</string>
+    <string name="car_sensors_count">Датчиков на экране: %1$d из 6</string>
+    <string name="car_allow_bt">Разрешить BT</string>
+    <string name="car_connect_prefix">Подкл. %1$s</string>
+    <string name="car_fullscreen_btn">Во весь экран</string>
+    <string name="car_alert_crit_sub">Критическое значение датчика</string>
+    <string name="car_alert_warn_sub">Превышен порог датчика</string>
+    <string name="car_detail_current">Текущее значение: %1$s</string>
+    <string name="car_detail_minmax">Мин: %1$s %2$s • Макс: %3$s %2$s</string>
+    <string name="car_detail_range">Диапазон: %1$d..%2$d %3$s</string>
+    <string name="car_detail_status">Состояние: %1$s</string>
+    <string name="car_status_crit">КРИТИЧЕСКОЕ ЗНАЧЕНИЕ</string>
+    <string name="car_status_warn">Повышенное значение</string>
+    <string name="car_status_ok">В пределах нормы</string>
+    <string name="car_conn_proto">Протокол: %1$s • %2$s Гц</string>
+    <string name="car_conn_sim_sub">Тестовые данные датчиков • %1$s Гц</string>
+    <string name="car_conn_disconn_sub">Выберите адаптер на телефоне или включите тест-режим</string>
 </resources>

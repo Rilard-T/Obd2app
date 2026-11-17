@@ -1,6 +1,9 @@
 package com.example.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,6 +31,10 @@ import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.FormatListBulleted
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Button
@@ -50,6 +57,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -59,11 +68,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.R
+import com.example.car.AnalogCockpitRenderer
+import com.example.car.AnalogDialScale
 import com.example.car.CarGaugeBitmapFactory
+import com.example.car.CockpitRenderFrame
+import com.example.obd.data.AndroidAutoDisplayMode
+import com.example.obd.i18n.l10nContext
+import com.example.obd.i18n.l10nStr
 import com.example.obd.model.AlertLevel
 import com.example.obd.model.ObdConnectionState
 import com.example.obd.model.ObdPid
 import com.example.obd.model.SensorCategory
+import com.example.obd.model.TelemetrySensor
 import com.example.ui.ObdUiState
 import com.example.ui.theme.CarbonObsidian
 import com.example.ui.theme.CockpitBorder
@@ -73,18 +89,53 @@ import com.example.ui.theme.RedlineCrimson
 import com.example.ui.theme.TelemetryCyan
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextSecondary
+import java.util.Locale
 
 @Composable
 fun AndroidAutoPreviewDialog(
     uiState: ObdUiState,
     onDismiss: () -> Unit,
-    onTogglePinAuto: (ObdPid) -> Unit,
+    onSelectDisplayMode: (AndroidAutoDisplayMode) -> Unit,
+    onCyclePreset: () -> Unit,
+    onSetDialSlot: (Int, String) -> Unit,
+    onSetStripSlot: (Int, String) -> Unit,
+    onTogglePinAuto: (String) -> Unit,
     onScanDtcs: () -> Unit,
     onStartSimulation: () -> Unit,
     onDisconnect: () -> Unit
 ) {
+    val isEng = uiState.settings.isEnglish
+    val l10nCtx = l10nContext()
     var selectedTab by remember { mutableIntStateOf(0) }
-    var detailPid by remember { mutableStateOf<ObdPid?>(null) }
+    var detailSensorId by remember { mutableStateOf<String?>(null) }
+    var editingTarget by remember { mutableStateOf<CockpitSlotTarget?>(null) }
+
+    val isFullscreenMode =
+        uiState.settings.androidAutoDisplayMode == AndroidAutoDisplayMode.FULLSCREEN_COCKPIT
+
+    val activeTarget = editingTarget
+    if (activeTarget != null) {
+        val currentId = when (activeTarget) {
+            is CockpitSlotTarget.Dial -> uiState.settings.fullscreenDialSensorIds.getOrNull(activeTarget.index)
+            is CockpitSlotTarget.Strip -> uiState.settings.fullscreenStripSensorIds.getOrNull(activeTarget.index)
+        }
+        SensorSlotPickerDialog(
+            title = l10nStr(R.string.cockpit_assign_title, activeTarget.label),
+            sensors = uiState.sensors,
+            selectedSensorId = currentId,
+            useFahrenheit = uiState.settings.useFahrenheit,
+            pressureUnit = uiState.settings.pressureUnit,
+            isEnglish = isEng,
+            onSelectSensor = { chosen ->
+                when (activeTarget) {
+                    is CockpitSlotTarget.Dial -> onSetDialSlot(activeTarget.index, chosen.id)
+                    is CockpitSlotTarget.Strip -> onSetStripSlot(activeTarget.index, chosen.id)
+                }
+                editingTarget = null
+            },
+            onDismiss = { editingTarget = null }
+        )
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -93,7 +144,7 @@ fun AndroidAutoPreviewDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 20.dp)
+                .padding(horizontal = 10.dp, vertical = 16.dp)
                 .testTag("aa_preview_dialog"),
             shape = RoundedCornerShape(24.dp),
             color = Color(0xFF07090D),
@@ -116,12 +167,16 @@ fun AndroidAutoPreviewDialog(
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
-                                text = "Макет экрана Android Auto",
+                                text = l10nStr(R.string.aa_preview_title),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Интерактивный предпросмотр Car App Library",
+                                text = if (isFullscreenMode) {
+                                    l10nStr(R.string.aa_preview_sub_full)
+                                } else {
+                                    l10nStr(R.string.aa_preview_sub_grid)
+                                },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = TextSecondary
                             )
@@ -135,111 +190,345 @@ fun AndroidAutoPreviewDialog(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Close,
-                            contentDescription = "Закрыть предпросмотр",
+                            contentDescription = l10nStr(R.string.cd_close_preview),
                             tint = TextSecondary
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Simulated Android Auto Coolwalk Head Unit Bezel
-                Surface(
+                // Mode Switch inside Head Unit Preview
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(470.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    color = Color(0xFF10131A),
-                    border = BorderStroke(2.dp, Color(0xFF2B3445))
+                        .padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(modifier = Modifier.fillMaxSize()) {
-                        // Left Android Auto System Rail
-                        Column(
-                            modifier = Modifier
-                                .width(52.dp)
-                                .fillMaxHeight()
-                                .background(Color(0xFF0A0C10))
-                                .padding(vertical = 12.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
+                    FilterChipButton(
+                        label = l10nStr(R.string.aa_preview_chip_full),
+                        icon = Icons.Filled.Fullscreen,
+                        selected = isFullscreenMode,
+                        onClick = { onSelectDisplayMode(AndroidAutoDisplayMode.FULLSCREEN_COCKPIT) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("aa_preview_mode_fullscreen")
+                    )
+                    FilterChipButton(
+                        label = l10nStr(R.string.aa_preview_chip_grid),
+                        icon = Icons.Filled.GridView,
+                        selected = !isFullscreenMode,
+                        onClick = { onSelectDisplayMode(AndroidAutoDisplayMode.STANDARD_GRID) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("aa_preview_mode_grid")
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                if (isFullscreenMode) {
+                    // Simulated Wide Head Unit Full-Screen NavigationTemplate + Right AA Dock
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(236.dp)
+                            .testTag("aa_fullscreen_preview_bezel"),
+                        shape = RoundedCornerShape(18.dp),
+                        color = Color(0xFF04060A),
+                        border = BorderStroke(2.dp, Color(0xFF2B3445))
+                    ) {
+                        Row(modifier = Modifier.fillMaxSize()) {
+                            // Main Fullscreen Car App Surface
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                            ) {
+                                val dialSensors = resolveDialSensors(uiState)
+                                val stripSensors = resolveStripSensors(uiState)
+
+                                val dialFractions = dialSensors.map { sensor ->
+                                    val spec = AnalogDialScale.buildSpec(
+                                        sensor = sensor,
+                                        reading = uiState.readings[sensor.id],
+                                        useFahrenheit = uiState.settings.useFahrenheit,
+                                        pressureUnit = uiState.settings.pressureUnit,
+                                        isEnglish = isEng
+                                    )
+                                    val animated by animateFloatAsState(
+                                        targetValue = spec.needleFraction,
+                                        animationSpec = spring(stiffness = 280f),
+                                        label = "preview_needle_${sensor.id}"
+                                    )
+                                    sensor.id to animated
+                                }.toMap()
+
+                                Canvas(modifier = Modifier.fillMaxSize()) {
+                                    val frame = CockpitRenderFrame(
+                                        dialSensors = dialSensors,
+                                        stripSensors = stripSensors,
+                                        readings = uiState.readings,
+                                        dialNeedleOverrides = dialFractions,
+                                        connectionState = uiState.connectionState,
+                                        useFahrenheit = uiState.settings.useFahrenheit,
+                                        pressureUnit = uiState.settings.pressureUnit,
+                                        isEnglish = isEng
+                                    )
+                                    drawIntoCanvas { canvas ->
+                                        AnalogCockpitRenderer.render(
+                                            canvas = canvas.nativeCanvas,
+                                            width = size.width,
+                                            height = size.height,
+                                            visibleArea = null,
+                                            frame = frame
+                                        )
+                                    }
+                                }
+
+                                // Transparent clickable overlays over Dials and Bottom Strip so user can swap gauges directly on the preview
+                                Column(modifier = Modifier.fillMaxSize()) {
+                                    Row(
+                                        modifier = Modifier
+                                            .weight(0.78f)
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                                    ) {
+                                        val dialLabels = listOf(
+                                            l10nStr(R.string.dial_left_full),
+                                            l10nStr(R.string.dial_center_full),
+                                            l10nStr(R.string.dial_right_full)
+                                        )
+                                        dialLabels.forEachIndexed { idx, label ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .fillMaxHeight()
+                                                    .clickable {
+                                                        editingTarget = CockpitSlotTarget.Dial(idx, label)
+                                                    }
+                                                    .testTag("preview_dial_tap_$idx")
+                                            )
+                                        }
+                                    }
+                                    Row(
+                                        modifier = Modifier
+                                            .weight(0.22f)
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp)
+                                    ) {
+                                        for (idx in 0 until 4) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .fillMaxHeight()
+                                                    .clickable {
+                                                        editingTarget = CockpitSlotTarget.Strip(
+                                                            idx,
+                                                            l10nCtx.getString(R.string.strip_slot_full, idx + 1)
+                                                        )
+                                                    }
+                                                    .testTag("preview_strip_tap_$idx")
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Top-right ActionStrip overlay (Preset + "Меню"/"Menu" + "Выход"/"Exit") matching AA NavigationTemplate
+                                Row(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(top = 8.dp, end = 10.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Surface(
+                                        onClick = onCyclePreset,
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = TelemetryCyan.copy(alpha = 0.22f),
+                                        border = BorderStroke(1.dp, TelemetryCyan),
+                                        modifier = Modifier.testTag("aa_preview_cycle_preset_button")
+                                    ) {
+                                        Text(
+                                            text = uiState.settings.activePreset.localizedName(isEng),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = TelemetryCyan,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                        )
+                                    }
+                                    Surface(
+                                        onClick = { onSelectDisplayMode(AndroidAutoDisplayMode.STANDARD_GRID) },
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = Color(0xFF282E38),
+                                        border = BorderStroke(1.dp, Color(0xFF3E4756))
+                                    ) {
+                                        Text(
+                                            text = l10nStr(R.string.aa_btn_menu),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color.White,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                        )
+                                    }
+                                    Surface(
+                                        onClick = onDismiss,
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = Color(0xFF282E38),
+                                        border = BorderStroke(1.dp, Color(0xFF3E4756))
+                                    ) {
+                                        Text(
+                                            text = l10nStr(R.string.aa_btn_exit),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color.White,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Right-side Android Auto Dock (matching photo)
                             Column(
+                                modifier = Modifier
+                                    .width(44.dp)
+                                    .fillMaxHeight()
+                                    .background(Color(0xFF0A0C10))
+                                    .padding(vertical = 10.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                verticalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = "12:45",
+                                    text = "07:40",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = Color.White
                                 )
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Image(
+                                        painter = painterResource(id = R.drawable.obd_app_icon),
+                                        contentDescription = l10nStr(R.string.app_name),
+                                        modifier = Modifier
+                                            .size(26.dp)
+                                            .clip(CircleShape)
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Filled.Phone,
+                                        contentDescription = null,
+                                        tint = NominalEmerald,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Filled.Mic,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                                 Icon(
-                                    imageVector = Icons.Filled.Bluetooth,
-                                    contentDescription = null,
-                                    tint = if (uiState.connectionState.isActiveTelemetry) TelemetryCyan else TextMuted,
-                                    modifier = Modifier.size(14.dp)
+                                    imageVector = Icons.Filled.Apps,
+                                    contentDescription = l10nStr(R.string.cd_aa_menu),
+                                    tint = Color.White.copy(alpha = 0.75f),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // Simulated Android Auto Coolwalk Tab/Grid Head Unit Bezel
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(440.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        color = Color(0xFF10131A),
+                        border = BorderStroke(2.dp, Color(0xFF2B3445))
+                    ) {
+                        Row(modifier = Modifier.fillMaxSize()) {
+                            Column(
+                                modifier = Modifier
+                                    .width(52.dp)
+                                    .fillMaxHeight()
+                                    .background(Color(0xFF0A0C10))
+                                    .padding(vertical = 12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        text = "12:45",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color.White
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Filled.Bluetooth,
+                                        contentDescription = null,
+                                        tint = if (uiState.connectionState.isActiveTelemetry) TelemetryCyan else TextMuted,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+
+                                Image(
+                                    painter = painterResource(id = R.drawable.obd_app_icon),
+                                    contentDescription = l10nStr(R.string.app_name),
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(CircleShape)
+                                )
+
+                                Icon(
+                                    imageVector = Icons.Filled.Apps,
+                                    contentDescription = l10nStr(R.string.cd_aa_menu),
+                                    tint = Color.White.copy(alpha = 0.75f),
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
 
-                            Image(
-                                painter = painterResource(id = R.drawable.obd_app_icon),
-                                contentDescription = "Иконка OBD2 Авто",
+                            Column(
                                 modifier = Modifier
-                                    .size(34.dp)
-                                    .clip(CircleShape)
-                            )
-
-                            Icon(
-                                imageVector = Icons.Filled.Apps,
-                                contentDescription = "Меню Android Auto",
-                                tint = Color.White.copy(alpha = 0.75f),
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-
-                        // Right Car App Library Template Surface
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .background(Color(0xFF141821))
-                        ) {
-                            val currentDetail = detailPid
-                            if (currentDetail != null) {
-                                CarDetailPanePreview(
-                                    pid = currentDetail,
-                                    uiState = uiState,
-                                    onBack = { detailPid = null },
-                                    onTogglePin = { onTogglePinAuto(currentDetail) }
-                                )
-                            } else {
-                                CarTabHeaderBar(
-                                    selectedTab = selectedTab,
-                                    onSelectTab = { selectedTab = it }
-                                )
-                                HorizontalDivider(color = Color(0xFF232B3A))
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .fillMaxWidth()
-                                ) {
-                                    when (selectedTab) {
-                                        0 -> CarGaugesGridPreview(
-                                            uiState = uiState,
-                                            onSelectPid = { detailPid = it }
-                                        )
-                                        1 -> CarAllSensorsListPreview(
-                                            uiState = uiState,
-                                            onSelectPid = { detailPid = it }
-                                        )
-                                        2 -> CarDtcListPreview(
-                                            uiState = uiState,
-                                            onScanDtcs = onScanDtcs
-                                        )
-                                        else -> CarConnectionPanePreview(
-                                            uiState = uiState,
-                                            onStartSimulation = onStartSimulation,
-                                            onDisconnect = onDisconnect
-                                        )
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .background(Color(0xFF141821))
+                            ) {
+                                val currentDetailSensor = detailSensorId?.let { id ->
+                                    uiState.sensors.find { it.id == id }
+                                }
+                                if (currentDetailSensor != null) {
+                                    CarDetailPanePreview(
+                                        sensor = currentDetailSensor,
+                                        uiState = uiState,
+                                        onBack = { detailSensorId = null },
+                                        onTogglePin = { onTogglePinAuto(currentDetailSensor.id) }
+                                    )
+                                } else {
+                                    CarTabHeaderBar(
+                                        selectedTab = selectedTab,
+                                        onSelectTab = { selectedTab = it }
+                                    )
+                                    HorizontalDivider(color = Color(0xFF232B3A))
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxWidth()
+                                    ) {
+                                        when (selectedTab) {
+                                            0 -> CarGaugesGridPreview(
+                                                uiState = uiState,
+                                                onSelectSensor = { detailSensorId = it.id }
+                                            )
+                                            1 -> CarAllSensorsListPreview(
+                                                uiState = uiState,
+                                                onSelectSensor = { detailSensorId = it.id }
+                                            )
+                                            2 -> CarDtcListPreview(
+                                                uiState = uiState,
+                                                onScanDtcs = onScanDtcs
+                                            )
+                                            else -> CarConnectionPanePreview(
+                                                uiState = uiState,
+                                                onStartSimulation = onStartSimulation,
+                                                onDisconnect = onDisconnect
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -256,9 +545,9 @@ fun AndroidAutoPreviewDialog(
                 ) {
                     Text(
                         text = if (uiState.connectionState.isActiveTelemetry) {
-                            "Данные обновляются в реальном времени"
+                            l10nStr(R.string.aa_preview_live_note)
                         } else {
-                            "Совет: включите «Тест-режим», чтобы увидеть живые шкалы"
+                            l10nStr(R.string.aa_preview_sim_note)
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextSecondary,
@@ -271,12 +560,78 @@ fun AndroidAutoPreviewDialog(
                             colors = ButtonDefaults.buttonColors(containerColor = MotorsportAmber),
                             modifier = Modifier.testTag("aa_preview_sim_button")
                         ) {
-                            Text("Тест-режим", color = CarbonObsidian)
+                            Text(l10nStr(R.string.action_sim_mode), color = CarbonObsidian)
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun FilterChipButton(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(10.dp),
+        color = if (selected) TelemetryCyan.copy(alpha = 0.20f) else Color(0xFF151A23),
+        border = BorderStroke(1.dp, if (selected) TelemetryCyan else CockpitBorder)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (selected) TelemetryCyan else TextSecondary,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(5.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (selected) TelemetryCyan else TextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+private fun resolveDialSensors(uiState: ObdUiState): List<TelemetrySensor> {
+    val defaults = listOf(
+        ObdPid.ENGINE_RPM.modeAndPid,
+        ObdPid.VEHICLE_SPEED.modeAndPid,
+        ObdPid.COOLANT_TEMP.modeAndPid
+    )
+    return (0 until 3).map { idx ->
+        val id = uiState.settings.fullscreenDialSensorIds.getOrNull(idx) ?: defaults[idx]
+        uiState.sensors.find { it.id == id }
+            ?: uiState.sensors.find { it.id == defaults[idx] }
+            ?: ObdPid.entries[idx].toTelemetrySensor()
+    }
+}
+
+private fun resolveStripSensors(uiState: ObdUiState): List<TelemetrySensor> {
+    val defaults = listOf(
+        ObdPid.CONTROL_MODULE_VOLTAGE.modeAndPid,
+        ObdPid.ENGINE_LOAD.modeAndPid,
+        ObdPid.OIL_TEMP.modeAndPid,
+        ObdPid.INTAKE_MAP.modeAndPid
+    )
+    return (0 until 4).map { idx ->
+        val id = uiState.settings.fullscreenStripSensorIds.getOrNull(idx) ?: defaults[idx]
+        uiState.sensors.find { it.id == id }
+            ?: uiState.sensors.find { it.id == defaults[idx] }
+            ?: ObdPid.entries[(idx + 3) % ObdPid.entries.size].toTelemetrySensor()
     }
 }
 
@@ -288,10 +643,10 @@ private fun CarTabHeaderBar(
     onSelectTab: (Int) -> Unit
 ) {
     val tabs = listOf(
-        CarTabItem("Приборы", Icons.Filled.Speed),
-        CarTabItem("Датчики", Icons.Filled.FormatListBulleted),
-        CarTabItem("Ошибки", Icons.Filled.WarningAmber),
-        CarTabItem("OBD2", Icons.Filled.Bluetooth)
+        CarTabItem(l10nStr(R.string.nav_gauges), Icons.Filled.Speed),
+        CarTabItem(l10nStr(R.string.nav_sensors), Icons.Filled.FormatListBulleted),
+        CarTabItem(l10nStr(R.string.nav_diagnostics), Icons.Filled.WarningAmber),
+        CarTabItem(l10nStr(R.string.nav_obd2), Icons.Filled.Bluetooth)
     )
 
     Row(
@@ -338,10 +693,14 @@ private fun CarTabHeaderBar(
 @Composable
 private fun CarGaugesGridPreview(
     uiState: ObdUiState,
-    onSelectPid: (ObdPid) -> Unit
+    onSelectSensor: (TelemetrySensor) -> Unit
 ) {
-    val pids = uiState.settings.androidAutoPids.take(6)
-    val rows = pids.chunked(2)
+    val isEng = uiState.settings.isEnglish
+    val pinnedSensors = uiState.settings.androidAutoSensorIds
+        .mapNotNull { id -> uiState.sensors.find { it.id == id } }
+        .take(6)
+        .ifEmpty { uiState.sensors.take(6) }
+    val rows = pinnedSensors.chunked(2)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -353,32 +712,34 @@ private fun CarGaugesGridPreview(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                for (pid in pair) {
-                    val reading = uiState.readings[pid]
+                for (sensor in pair) {
+                    val reading = uiState.readings[sensor.id]
                     val bitmap = remember(
-                        pid,
+                        sensor.id,
                         reading?.value,
                         reading?.alertLevel,
                         uiState.settings.useFahrenheit,
-                        uiState.settings.pressureUnit
+                        uiState.settings.pressureUnit,
+                        isEng
                     ) {
                         CarGaugeBitmapFactory.createGaugeBitmap(
-                            pid = pid,
+                            sensor = sensor,
                             reading = reading,
                             useFahrenheit = uiState.settings.useFahrenheit,
                             pressureUnit = uiState.settings.pressureUnit,
-                            sizePx = 180
+                            sizePx = 180,
+                            isEnglish = isEng
                         )
                     }
                     val valueStr = reading?.let {
-                        "${pid.formatValue(it.value, uiState.settings.useFahrenheit, uiState.settings.pressureUnit)} ${pid.displayUnit(uiState.settings.useFahrenheit, uiState.settings.pressureUnit)}"
-                    } ?: "Нет данных"
+                        "${sensor.formatValue(it.value, uiState.settings.useFahrenheit, uiState.settings.pressureUnit, isEng)} ${sensor.displayUnit(uiState.settings.useFahrenheit, uiState.settings.pressureUnit, isEng)}"
+                    } ?: l10nStr(R.string.label_no_data)
 
                     Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { onSelectPid(pid) }
-                            .testTag("aa_grid_item_${pid.pidHex}"),
+                            .clickable { onSelectSensor(sensor) }
+                            .testTag("aa_grid_item_${sensor.id}"),
                         shape = RoundedCornerShape(14.dp),
                         color = Color(0xFF1D2330),
                         border = BorderStroke(1.dp, Color(0xFF2B3548))
@@ -389,12 +750,12 @@ private fun CarGaugesGridPreview(
                         ) {
                             Image(
                                 bitmap = bitmap.asImageBitmap(),
-                                contentDescription = pid.shortName,
+                                contentDescription = sensor.localizedShortName(isEng),
                                 modifier = Modifier.size(72.dp)
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = pid.shortName,
+                                text = sensor.localizedShortName(isEng),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = Color.White,
                                 maxLines = 1,
@@ -420,32 +781,36 @@ private fun CarGaugesGridPreview(
 @Composable
 private fun CarAllSensorsListPreview(
     uiState: ObdUiState,
-    onSelectPid: (ObdPid) -> Unit
+    onSelectSensor: (TelemetrySensor) -> Unit
 ) {
+    val isEng = uiState.settings.isEnglish
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        for (category in SensorCategory.entries) {
+        val orderedCategories = listOf(SensorCategory.CUSTOM) +
+            SensorCategory.entries.filter { it != SensorCategory.CUSTOM }
+        for (category in orderedCategories) {
+            val categorySensors = uiState.sensors.filter { it.category == category }
+            if (categorySensors.isEmpty()) continue
             item(key = "header_${category.name}") {
                 Text(
-                    text = category.displayName,
+                    text = category.localizedName(isEng),
                     style = MaterialTheme.typography.labelLarge,
                     color = TelemetryCyan,
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
-            val pids = ObdPid.entries.filter { it.category == category }
-            items(pids, key = { it.pidHex }) { pid ->
-                val reading = uiState.readings[pid]
+            items(categorySensors, key = { it.id }) { sensor ->
+                val reading = uiState.readings[sensor.id]
                 val valStr = reading?.let {
-                    "${pid.formatValue(it.value, uiState.settings.useFahrenheit, uiState.settings.pressureUnit)} ${pid.displayUnit(uiState.settings.useFahrenheit, uiState.settings.pressureUnit)}"
+                    "${sensor.formatValue(it.value, uiState.settings.useFahrenheit, uiState.settings.pressureUnit, isEng)} ${sensor.displayUnit(uiState.settings.useFahrenheit, uiState.settings.pressureUnit, isEng)}"
                 } ?: "--"
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onSelectPid(pid) },
+                        .clickable { onSelectSensor(sensor) },
                     shape = RoundedCornerShape(12.dp),
                     color = Color(0xFF1D2330)
                 ) {
@@ -456,14 +821,14 @@ private fun CarAllSensorsListPreview(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = pid.displayName,
+                                text = sensor.localizedDisplayName(isEng),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = Color.White,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = "PID ${pid.modeAndPid}",
+                                text = "PID ${sensor.modeAndPid}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = TextSecondary
                             )
@@ -489,6 +854,7 @@ private fun CarDtcListPreview(
     uiState: ObdUiState,
     onScanDtcs: () -> Unit
 ) {
+    val isEng = uiState.settings.isEnglish
     val dtc = uiState.dtcState
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -503,12 +869,12 @@ private fun CarDtcListPreview(
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
-                        text = if (dtc.milOn) "Check Engine (MIL): АКТИВЕН" else "Check Engine (MIL): Норма",
+                        text = if (dtc.milOn) l10nStr(R.string.mil_active) else l10nStr(R.string.mil_normal),
                         style = MaterialTheme.typography.titleMedium,
                         color = if (dtc.milOn) RedlineCrimson else NominalEmerald
                     )
                     Text(
-                        text = dtc.statusMessage ?: "Нажмите «Считать ошибки» для опроса ЭБУ",
+                        text = dtc.statusMessage ?: l10nStr(R.string.dtc_scan_hint),
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextSecondary
                     )
@@ -522,7 +888,7 @@ private fun CarDtcListPreview(
                 colors = ButtonDefaults.buttonColors(containerColor = TelemetryCyan),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Считать ошибки ЭБУ (Mode 03)", color = CarbonObsidian)
+                Text(l10nStr(R.string.car_dtc_read_title), color = CarbonObsidian)
             }
         }
         items(dtc.codes, key = { it.code }) { code ->
@@ -533,7 +899,7 @@ private fun CarDtcListPreview(
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
-                        text = "${code.code} • ${code.severity.label}",
+                        text = "${code.code} • ${code.severity.localizedLabel(isEng)}",
                         style = MaterialTheme.typography.titleMedium,
                         color = MotorsportAmber
                     )
@@ -554,6 +920,8 @@ private fun CarConnectionPanePreview(
     onStartSimulation: () -> Unit,
     onDisconnect: () -> Unit
 ) {
+    val isEng = uiState.settings.isEnglish
+    val numLocale = if (isEng) Locale.US else Locale.forLanguageTag("ru-RU")
     val conn = uiState.connectionState
     Column(
         modifier = Modifier
@@ -569,11 +937,11 @@ private fun CarConnectionPanePreview(
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     val title = when (conn) {
-                        is ObdConnectionState.Connected -> "Подключён: ${conn.deviceName}"
-                        is ObdConnectionState.Simulation -> "РЕЖИМ СИМУЛЯЦИИ (без OBD2)"
-                        is ObdConnectionState.Connecting -> "Подключение: ${conn.deviceName}"
-                        is ObdConnectionState.Error -> "Ошибка подключения"
-                        is ObdConnectionState.Disconnected -> "Адаптер не подключён"
+                        is ObdConnectionState.Connected -> l10nStr(R.string.banner_connected_title, conn.deviceName)
+                        is ObdConnectionState.Simulation -> l10nStr(R.string.banner_sim_title)
+                        is ObdConnectionState.Connecting -> l10nStr(R.string.banner_connecting_title, conn.deviceName)
+                        is ObdConnectionState.Error -> l10nStr(R.string.banner_error_title)
+                        is ObdConnectionState.Disconnected -> l10nStr(R.string.banner_disconnected_title)
                     }
                     Text(
                         text = title,
@@ -582,9 +950,16 @@ private fun CarConnectionPanePreview(
                     )
                     Text(
                         text = when (conn) {
-                            is ObdConnectionState.Connected -> "Протокол: ${conn.protocol}"
-                            is ObdConnectionState.Simulation -> "Тестовые показания датчиков"
-                            else -> "Подключите адаптер или включите тест-режим"
+                            is ObdConnectionState.Connected -> l10nStr(
+                                R.string.car_conn_proto,
+                                conn.protocol,
+                                String.format(numLocale, "%.1f", conn.pollingHz)
+                            )
+                            is ObdConnectionState.Simulation -> l10nStr(
+                                R.string.car_conn_sim_sub,
+                                String.format(numLocale, "%.1f", conn.pollingHz)
+                            )
+                            else -> l10nStr(R.string.car_conn_disconn_sub)
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextSecondary
@@ -599,12 +974,14 @@ private fun CarConnectionPanePreview(
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
-                        text = "Датчиков на экране: ${uiState.settings.androidAutoPids.size} из 6",
+                        text = l10nStr(R.string.car_sensors_count, uiState.settings.androidAutoSensorIds.size),
                         style = MaterialTheme.typography.titleMedium,
                         color = Color.White
                     )
                     Text(
-                        text = uiState.settings.androidAutoPids.joinToString(", ") { it.shortName },
+                        text = uiState.settings.androidAutoSensorIds.joinToString(", ") { id ->
+                            uiState.sensors.find { it.id == id }?.localizedShortName(isEng) ?: id
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = TelemetryCyan
                     )
@@ -622,7 +999,7 @@ private fun CarConnectionPanePreview(
                     modifier = Modifier.weight(1f),
                     border = BorderStroke(1.dp, TelemetryCyan)
                 ) {
-                    Text("Отключить", color = TelemetryCyan)
+                    Text(l10nStr(R.string.action_disconnect), color = TelemetryCyan)
                 }
             } else {
                 Button(
@@ -630,7 +1007,7 @@ private fun CarConnectionPanePreview(
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = TelemetryCyan)
                 ) {
-                    Text("Тест-режим", color = CarbonObsidian)
+                    Text(l10nStr(R.string.action_sim_mode), color = CarbonObsidian)
                 }
             }
         }
@@ -639,28 +1016,31 @@ private fun CarConnectionPanePreview(
 
 @Composable
 private fun CarDetailPanePreview(
-    pid: ObdPid,
+    sensor: TelemetrySensor,
     uiState: ObdUiState,
     onBack: () -> Unit,
     onTogglePin: () -> Unit
 ) {
-    val reading = uiState.readings[pid]
+    val isEng = uiState.settings.isEnglish
+    val reading = uiState.readings[sensor.id]
     val bitmap = remember(
-        pid,
+        sensor.id,
         reading?.value,
         uiState.settings.useFahrenheit,
-        uiState.settings.pressureUnit
+        uiState.settings.pressureUnit,
+        isEng
     ) {
         CarGaugeBitmapFactory.createGaugeBitmap(
-            pid = pid,
+            sensor = sensor,
             reading = reading,
             useFahrenheit = uiState.settings.useFahrenheit,
             pressureUnit = uiState.settings.pressureUnit,
-            sizePx = 220
+            sizePx = 220,
+            isEnglish = isEng
         )
     }
-    val unit = pid.displayUnit(uiState.settings.useFahrenheit, uiState.settings.pressureUnit)
-    val isPinned = pid in uiState.settings.androidAutoPids
+    val unit = sensor.displayUnit(uiState.settings.useFahrenheit, uiState.settings.pressureUnit, isEng)
+    val isPinned = sensor.id in uiState.settings.androidAutoSensorIds
 
     Column(
         modifier = Modifier
@@ -675,12 +1055,12 @@ private fun CarDetailPanePreview(
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Назад",
+                    contentDescription = l10nStr(R.string.action_back),
                     tint = Color.White
                 )
             }
             Text(
-                text = pid.displayName,
+                text = sensor.localizedDisplayName(isEng),
                 style = MaterialTheme.typography.titleMedium,
                 color = Color.White,
                 fontWeight = FontWeight.SemiBold
@@ -694,7 +1074,7 @@ private fun CarDetailPanePreview(
         ) {
             Image(
                 bitmap = bitmap.asImageBitmap(),
-                contentDescription = pid.displayName,
+                contentDescription = sensor.localizedDisplayName(isEng),
                 modifier = Modifier.size(110.dp)
             )
             Column(
@@ -702,16 +1082,18 @@ private fun CarDetailPanePreview(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val cur = reading?.let {
-                    "${pid.formatValue(it.value, uiState.settings.useFahrenheit, uiState.settings.pressureUnit)} $unit"
-                } ?: "Ожидание данных..."
+                    "${sensor.formatValue(it.value, uiState.settings.useFahrenheit, uiState.settings.pressureUnit, isEng)} $unit"
+                } ?: l10nStr(R.string.label_waiting_data)
                 Text(
-                    text = "Текущее: $cur",
+                    text = l10nStr(R.string.aa_current_short, cur),
                     style = MaterialTheme.typography.titleMedium,
                     color = Color.White
                 )
                 val minMax = reading?.let {
-                    "Мин: ${pid.formatValue(it.minValue, uiState.settings.useFahrenheit, uiState.settings.pressureUnit)} • Макс: ${pid.formatValue(it.maxValue, uiState.settings.useFahrenheit, uiState.settings.pressureUnit)} $unit"
-                } ?: "PID ${pid.modeAndPid}"
+                    val minStr = sensor.formatValue(it.minValue, uiState.settings.useFahrenheit, uiState.settings.pressureUnit, isEng)
+                    val maxStr = sensor.formatValue(it.maxValue, uiState.settings.useFahrenheit, uiState.settings.pressureUnit, isEng)
+                    l10nStr(R.string.car_detail_minmax, minStr, unit, maxStr)
+                } ?: "PID ${sensor.modeAndPid}"
                 Text(
                     text = minMax,
                     style = MaterialTheme.typography.bodyMedium,
@@ -732,7 +1114,7 @@ private fun CarDetailPanePreview(
                 )
             ) {
                 Text(
-                    text = if (isPinned) "Убрать с приборов" else "На приборы",
+                    text = if (isPinned) l10nStr(R.string.aa_pin_remove) else l10nStr(R.string.aa_pin_add),
                     color = if (isPinned) Color.White else CarbonObsidian
                 )
             }
@@ -741,7 +1123,7 @@ private fun CarDetailPanePreview(
                 modifier = Modifier.weight(1f),
                 border = BorderStroke(1.dp, CockpitBorder)
             ) {
-                Text("Назад", color = Color.White)
+                Text(l10nStr(R.string.action_back), color = Color.White)
             }
         }
     }

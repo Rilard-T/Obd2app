@@ -44,11 +44,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.R
+import com.example.obd.i18n.l10nStr
 import com.example.obd.model.AlertLevel
 import com.example.obd.model.ObdConnectionState
-import com.example.obd.model.ObdPid
 import com.example.obd.model.PressureUnit
 import com.example.obd.model.SensorReading
+import com.example.obd.model.TelemetrySensor
 import com.example.ui.theme.CockpitBorder
 import com.example.ui.theme.CockpitSurface
 import com.example.ui.theme.CockpitSurfaceElevated
@@ -58,6 +60,7 @@ import com.example.ui.theme.RedlineCrimson
 import com.example.ui.theme.TelemetryCyan
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextSecondary
+import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -66,38 +69,44 @@ import kotlin.math.sin
 fun ConnectionStatusBanner(
     connectionState: ObdConnectionState,
     onActionClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isEnglish: Boolean = false
 ) {
+    val numLocale = if (isEnglish) Locale.US else Locale.forLanguageTag("ru-RU")
     val (bgColor, accentColor, title, subtitle) = when (connectionState) {
         is ObdConnectionState.Connected -> Quadruple(
             CockpitSurfaceElevated,
             NominalEmerald,
-            "Подключён: ${connectionState.deviceName}",
-            "${connectionState.protocol} • ${String.format("%.1f", connectionState.pollingHz)} Гц • Android Auto готов"
+            l10nStr(R.string.banner_connected_title, connectionState.deviceName),
+            l10nStr(
+                R.string.banner_connected_sub,
+                connectionState.protocol,
+                String.format(numLocale, "%.1f", connectionState.pollingHz)
+            )
         )
         is ObdConnectionState.Simulation -> Quadruple(
             MotorsportAmber.copy(alpha = 0.14f),
             MotorsportAmber,
-            "РЕЖИМ СИМУЛЯЦИИ (без OBD2)",
-            "Тестовые данные транслируются на телефон и Android Auto (${String.format("%.1f", connectionState.pollingHz)} Гц)"
+            l10nStr(R.string.banner_sim_title),
+            l10nStr(R.string.banner_sim_sub, String.format(numLocale, "%.1f", connectionState.pollingHz))
         )
         is ObdConnectionState.Connecting -> Quadruple(
             TelemetryCyan.copy(alpha = 0.12f),
             TelemetryCyan,
-            "Подключение: ${connectionState.deviceName}",
+            l10nStr(R.string.banner_connecting_title, connectionState.deviceName),
             connectionState.step
         )
         is ObdConnectionState.Error -> Quadruple(
             RedlineCrimson.copy(alpha = 0.14f),
             RedlineCrimson,
-            "Ошибка подключения OBD2",
+            l10nStr(R.string.banner_error_title),
             connectionState.message
         )
         is ObdConnectionState.Disconnected -> Quadruple(
             CockpitSurface,
             TextSecondary,
-            "Адаптер OBD2 не подключён",
-            "Подключите ELM327 по Bluetooth или запустите тест-режим"
+            l10nStr(R.string.banner_disconnected_title),
+            l10nStr(R.string.banner_disconnected_sub)
         )
     }
 
@@ -120,7 +129,7 @@ fun ConnectionStatusBanner(
                     is ObdConnectionState.Error -> Icons.Filled.WarningAmber
                     else -> Icons.Filled.DirectionsCar
                 },
-                contentDescription = "Статус подключения",
+                contentDescription = l10nStr(R.string.cd_connection_status),
                 tint = accentColor,
                 modifier = Modifier.size(24.dp)
             )
@@ -149,14 +158,16 @@ private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third:
 
 @Composable
 fun ArcGauge(
-    pid: ObdPid,
+    sensor: TelemetrySensor,
     reading: SensorReading?,
     useFahrenheit: Boolean,
     pressureUnit: PressureUnit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isEnglish: Boolean = false
 ) {
+    val span = (sensor.maxRange - sensor.minRange).coerceAtLeast(0.1f)
     val targetFraction = if (reading != null) {
-        ((reading.value - pid.minRange) / (pid.maxRange - pid.minRange)).coerceIn(0f, 1f)
+        ((reading.value - sensor.minRange) / span).coerceIn(0f, 1f)
     } else {
         0f
     }
@@ -182,7 +193,6 @@ fun ArcGauge(
             val arcSize = Size(size.width - inset * 2f, size.height - inset * 2f)
             val topLeft = Offset(inset, inset)
 
-            // Outer tick marks
             val radius = (size.minDimension - inset * 2f) / 2f
             val center = Offset(size.width / 2f, size.height / 2f)
             for (i in 0..24) {
@@ -207,7 +217,6 @@ fun ArcGauge(
                 )
             }
 
-            // Track arc
             drawArc(
                 color = CockpitBorder.copy(alpha = 0.65f),
                 startAngle = 135f,
@@ -218,7 +227,6 @@ fun ArcGauge(
                 style = Stroke(width = strokePx, cap = StrokeCap.Round)
             )
 
-            // Active progress arc
             if (animatedFraction > 0.005f) {
                 drawArc(
                     brush = Brush.sweepGradient(
@@ -239,19 +247,19 @@ fun ArcGauge(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = reading?.let {
-                    pid.formatValue(it.value, useFahrenheit, pressureUnit)
+                    sensor.formatValue(it.value, useFahrenheit, pressureUnit, isEnglish)
                 } ?: "--",
                 style = MaterialTheme.typography.displayMedium,
                 color = if (reading?.alertLevel == AlertLevel.CRITICAL) RedlineCrimson else MaterialTheme.colorScheme.onBackground
             )
             Text(
-                text = pid.displayUnit(useFahrenheit, pressureUnit),
+                text = sensor.displayUnit(useFahrenheit, pressureUnit, isEnglish),
                 style = MaterialTheme.typography.labelMedium,
                 color = alertColor
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = pid.shortName,
+                text = sensor.localizedShortName(isEnglish),
                 style = MaterialTheme.typography.labelSmall,
                 color = TextSecondary
             )
@@ -261,14 +269,15 @@ fun ArcGauge(
 
 @Composable
 fun SensorTileCard(
-    pid: ObdPid,
+    sensor: TelemetrySensor,
     reading: SensorReading?,
     isPinnedToCar: Boolean,
     useFahrenheit: Boolean,
     pressureUnit: PressureUnit,
     onTogglePin: () -> Unit,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isEnglish: Boolean = false
 ) {
     val accent = when (reading?.alertLevel) {
         AlertLevel.CRITICAL -> RedlineCrimson
@@ -280,7 +289,7 @@ fun SensorTileCard(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .testTag("sensor_tile_${pid.pidHex}"),
+            .testTag("sensor_tile_${sensor.id}"),
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = CockpitSurface),
         border = BorderStroke(
@@ -299,23 +308,36 @@ fun SensorTileCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = pid.shortName,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = TextSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = sensor.localizedShortName(isEnglish),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (sensor.isCustom) {
+                        Text(
+                            text = "Torque • ${sensor.modeAndPid}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TelemetryCyan.copy(alpha = 0.8f),
+                            maxLines = 1
+                        )
+                    }
+                }
                 IconButton(
                     onClick = onTogglePin,
                     modifier = Modifier
                         .size(48.dp)
-                        .testTag("pin_auto_${pid.pidHex}")
+                        .testTag("pin_auto_${sensor.id}")
                 ) {
                     Icon(
                         imageVector = if (isPinnedToCar) Icons.Filled.PushPin else Icons.Outlined.PushPin,
-                        contentDescription = if (isPinnedToCar) "Закреплено на экране Android Auto" else "Добавить на экран Android Auto",
+                        contentDescription = if (isPinnedToCar) {
+                            l10nStr(R.string.cd_pin_aa_active)
+                        } else {
+                            l10nStr(R.string.cd_pin_aa_inactive)
+                        },
                         tint = if (isPinnedToCar) TelemetryCyan else TextMuted,
                         modifier = Modifier.size(18.dp)
                     )
@@ -328,14 +350,14 @@ fun SensorTileCard(
             ) {
                 Text(
                     text = reading?.let {
-                        pid.formatValue(it.value, useFahrenheit, pressureUnit)
+                        sensor.formatValue(it.value, useFahrenheit, pressureUnit, isEnglish)
                     } ?: "--",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = if (reading?.alertLevel == AlertLevel.CRITICAL) RedlineCrimson else MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = pid.displayUnit(useFahrenheit, pressureUnit),
+                    text = sensor.displayUnit(useFahrenheit, pressureUnit, isEnglish),
                     style = MaterialTheme.typography.labelMedium,
                     color = accent,
                     modifier = Modifier.padding(bottom = 3.dp)
@@ -346,8 +368,8 @@ fun SensorTileCard(
 
             MiniSparkline(
                 values = reading?.history.orEmpty(),
-                minRange = pid.minRange,
-                maxRange = pid.maxRange,
+                minRange = sensor.minRange,
+                maxRange = sensor.maxRange,
                 lineColor = accent,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -360,15 +382,15 @@ fun SensorTileCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                val minText = reading?.let { pid.formatValue(it.minValue, useFahrenheit, pressureUnit) } ?: "--"
-                val maxText = reading?.let { pid.formatValue(it.maxValue, useFahrenheit, pressureUnit) } ?: "--"
+                val minText = reading?.let { sensor.formatValue(it.minValue, useFahrenheit, pressureUnit, isEnglish) } ?: "--"
+                val maxText = reading?.let { sensor.formatValue(it.maxValue, useFahrenheit, pressureUnit, isEnglish) } ?: "--"
                 Text(
-                    text = "min $minText",
+                    text = l10nStr(R.string.min_label_short, minText),
                     style = MaterialTheme.typography.labelSmall,
                     color = TextMuted
                 )
                 Text(
-                    text = "max $maxText",
+                    text = l10nStr(R.string.max_label_short, maxText),
                     style = MaterialTheme.typography.labelSmall,
                     color = TextMuted
                 )
@@ -434,11 +456,12 @@ fun MiniSparkline(
 
 @Composable
 fun TelemetryHistoryChart(
-    pid: ObdPid,
+    sensor: TelemetrySensor,
     reading: SensorReading?,
     useFahrenheit: Boolean,
     pressureUnit: PressureUnit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isEnglish: Boolean = false
 ) {
     val values = reading?.history.orEmpty()
     val accent = when (reading?.alertLevel) {
@@ -459,21 +482,23 @@ fun TelemetryHistoryChart(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = pid.displayName,
+                        text = sensor.localizedDisplayName(isEnglish),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+                    val headerText = if (sensor.header.isNotBlank()) " • HDR ${sensor.header}" else ""
                     Text(
-                        text = "PID ${pid.modeAndPid} • ${pid.category.displayName}",
+                        text = "PID ${sensor.modeAndPid}$headerText • ${sensor.category.localizedName(isEnglish)}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextSecondary
                     )
                 }
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = reading?.let {
-                        "${pid.formatValue(it.value, useFahrenheit, pressureUnit)} ${pid.displayUnit(useFahrenheit, pressureUnit)}"
+                        "${sensor.formatValue(it.value, useFahrenheit, pressureUnit, isEnglish)} ${sensor.displayUnit(useFahrenheit, pressureUnit, isEnglish)}"
                     } ?: "--",
                     style = MaterialTheme.typography.headlineMedium,
                     color = accent
@@ -487,7 +512,6 @@ fun TelemetryHistoryChart(
                     .fillMaxWidth()
                     .height(130.dp)
             ) {
-                // Horizontal grid lines
                 for (i in 0..3) {
                     val y = size.height * i / 3f
                     drawLine(
@@ -500,8 +524,8 @@ fun TelemetryHistoryChart(
 
                 if (values.size < 2) return@Canvas
 
-                val localMin = minOf(pid.minRange, values.minOrNull() ?: pid.minRange)
-                val localMax = maxOf(pid.maxRange, values.maxOrNull() ?: pid.maxRange)
+                val localMin = minOf(sensor.minRange, values.minOrNull() ?: sensor.minRange)
+                val localMax = maxOf(sensor.maxRange, values.maxOrNull() ?: sensor.maxRange)
                 val span = (localMax - localMin).coerceAtLeast(1f)
                 val stepX = size.width / (values.size - 1)
 

@@ -13,6 +13,8 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.example.ObdApplication
+import com.example.R
+import com.example.obd.i18n.AppLocalization
 import com.example.obd.model.AlertLevel
 import com.example.obd.model.ObdPid
 import kotlinx.coroutines.flow.collectLatest
@@ -21,7 +23,7 @@ import kotlinx.coroutines.launch
 
 class SensorDetailCarScreen(
     carContext: CarContext,
-    private val pid: ObdPid
+    private val sensorId: String
 ) : Screen(carContext) {
 
     private val repository = (carContext.applicationContext as ObdApplication).telemetryRepository
@@ -31,7 +33,11 @@ class SensorDetailCarScreen(
         lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onCreate(owner: LifecycleOwner) {
                 lifecycleScope.launch {
-                    combine(repository.readings, repository.settings) { _, _ -> Unit }.collectLatest {
+                    combine(
+                        repository.readings,
+                        repository.settings,
+                        repository.sensors
+                    ) { _, _, _ -> Unit }.collectLatest {
                         val now = System.currentTimeMillis()
                         if (now - lastInvalidateMs >= 500L) {
                             lastInvalidateMs = now
@@ -45,61 +51,75 @@ class SensorDetailCarScreen(
 
     override fun onGetTemplate(): Template {
         val settings = repository.settings.value
-        val reading = repository.readings.value[pid]
-        val unit = pid.displayUnit(settings.useFahrenheit, settings.pressureUnit)
+        val isEng = settings.isEnglish
+        val l10nCtx = AppLocalization.localizedContext(carContext, settings.appLanguage)
+        val sensor = repository.sensors.value.find { it.id == sensorId }
+            ?: ObdPid.ENGINE_RPM.toTelemetrySensor(isEng)
+        val reading = repository.readings.value[sensor.id]
+        val unit = sensor.displayUnit(settings.useFahrenheit, settings.pressureUnit, isEng)
 
         val currentText = reading?.let {
-            "${pid.formatValue(it.value, settings.useFahrenheit, settings.pressureUnit)} $unit"
-        } ?: "Ожидание данных..."
+            "${sensor.formatValue(it.value, settings.useFahrenheit, settings.pressureUnit, isEng)} $unit"
+        } ?: l10nCtx.getString(R.string.label_waiting_data)
 
         val minMaxText = reading?.let {
-            val minStr = pid.formatValue(it.minValue, settings.useFahrenheit, settings.pressureUnit)
-            val maxStr = pid.formatValue(it.maxValue, settings.useFahrenheit, settings.pressureUnit)
-            "Мин: $minStr $unit • Макс: $maxStr $unit"
-        } ?: "Диапазон: ${pid.minRange.toInt()}..${pid.maxRange.toInt()} $unit"
+            val minStr = sensor.formatValue(it.minValue, settings.useFahrenheit, settings.pressureUnit, isEng)
+            val maxStr = sensor.formatValue(it.maxValue, settings.useFahrenheit, settings.pressureUnit, isEng)
+            l10nCtx.getString(R.string.car_detail_minmax, minStr, unit, maxStr)
+        } ?: l10nCtx.getString(
+            R.string.car_detail_range,
+            sensor.minRange.toInt(),
+            sensor.maxRange.toInt(),
+            unit
+        )
 
         val statusText = when (reading?.alertLevel) {
-            AlertLevel.CRITICAL -> "КРИТИЧЕСКОЕ ЗНАЧЕНИЕ"
-            AlertLevel.WARNING -> "Повышенное значение"
-            else -> "В пределах нормы"
+            AlertLevel.CRITICAL -> l10nCtx.getString(R.string.car_status_crit)
+            AlertLevel.WARNING -> l10nCtx.getString(R.string.car_status_warn)
+            else -> l10nCtx.getString(R.string.car_status_ok)
         }
 
-        val isPinned = pid in settings.androidAutoPids
+        val isPinned = sensor.id in settings.androidAutoSensorIds
         val gaugeIcon = CarGaugeBitmapFactory.createGaugeIcon(
-            pid = pid,
+            sensor = sensor,
             reading = reading,
             useFahrenheit = settings.useFahrenheit,
             pressureUnit = settings.pressureUnit,
-            sizePx = 300
+            sizePx = 300,
+            isEnglish = isEng
         )
 
+        val headerNote = if (sensor.header.isNotBlank()) " • HDR ${sensor.header}" else ""
         val pane = Pane.Builder()
             .setImage(gaugeIcon)
             .addRow(
                 Row.Builder()
-                    .setTitle("Текущее значение: $currentText")
+                    .setTitle(l10nCtx.getString(R.string.car_detail_current, currentText))
                     .addText(minMaxText)
                     .build()
             )
             .addRow(
                 Row.Builder()
-                    .setTitle("Состояние: $statusText")
-                    .addText("OBD2 PID ${pid.modeAndPid} • ${pid.category.displayName}")
+                    .setTitle(l10nCtx.getString(R.string.car_detail_status, statusText))
+                    .addText("PID ${sensor.modeAndPid}$headerNote • ${sensor.category.localizedName(isEng)}")
                     .build()
             )
             .addAction(
                 Action.Builder()
-                    .setTitle(if (isPinned) "Убрать с приборов" else "На приборы")
+                    .setTitle(
+                        if (isPinned) l10nCtx.getString(R.string.aa_pin_remove)
+                        else l10nCtx.getString(R.string.aa_pin_add)
+                    )
                     .setBackgroundColor(if (isPinned) CarColor.DEFAULT else CarColor.PRIMARY)
                     .setOnClickListener {
-                        repository.toggleAndroidAutoPid(pid)
+                        repository.toggleAndroidAutoSensor(sensor.id)
                         invalidate()
                     }
                     .build()
             )
             .addAction(
                 Action.Builder()
-                    .setTitle("Назад")
+                    .setTitle(l10nCtx.getString(R.string.action_back))
                     .setOnClickListener { screenManager.pop() }
                     .build()
             )
@@ -108,7 +128,7 @@ class SensorDetailCarScreen(
         return PaneTemplate.Builder(pane)
             .setHeader(
                 Header.Builder()
-                    .setTitle(pid.displayName)
+                    .setTitle(sensor.localizedDisplayName(isEng))
                     .setStartHeaderAction(Action.BACK)
                     .build()
             )

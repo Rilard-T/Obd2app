@@ -11,18 +11,20 @@ import androidx.car.app.model.Template
 import androidx.core.graphics.drawable.IconCompat
 import com.example.ObdApplication
 import com.example.R
+import com.example.obd.i18n.AppLocalization
 
 class DtcConfirmClearCarScreen(carContext: CarContext) : Screen(carContext) {
 
     private val repository = (carContext.applicationContext as ObdApplication).telemetryRepository
 
     override fun onGetTemplate(): Template {
+        val l10nCtx = AppLocalization.localizedContext(carContext, repository.settings.value.appLanguage)
         return MessageTemplate.Builder(
-            "Команда Mode 04 удалит коды неисправностей из памяти ЭБУ и погасит индикатор Check Engine. Выполнять только на остановленном автомобиле."
+            l10nCtx.getString(R.string.dtc_clear_car_msg)
         )
             .setHeader(
                 Header.Builder()
-                    .setTitle("Сбросить ошибки ЭБУ?")
+                    .setTitle(l10nCtx.getString(R.string.dtc_clear_title))
                     .setStartHeaderAction(Action.BACK)
                     .build()
             )
@@ -33,7 +35,7 @@ class DtcConfirmClearCarScreen(carContext: CarContext) : Screen(carContext) {
             )
             .addAction(
                 Action.Builder()
-                    .setTitle("Сбросить (Mode 04)")
+                    .setTitle(l10nCtx.getString(R.string.dtc_clear_mode04_btn))
                     .setBackgroundColor(CarColor.RED)
                     .setOnClickListener {
                         repository.clearDtcs()
@@ -43,7 +45,7 @@ class DtcConfirmClearCarScreen(carContext: CarContext) : Screen(carContext) {
             )
             .addAction(
                 Action.Builder()
-                    .setTitle("Отмена")
+                    .setTitle(l10nCtx.getString(R.string.action_cancel))
                     .setOnClickListener { screenManager.pop() }
                     .build()
             )
