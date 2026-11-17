@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">OBD2 Авто</string>
+    <string name="car_app_description">Телеметрия и датчики автомобиля через OBD2 в Android Auto</string>
+</resources>

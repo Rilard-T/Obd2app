@@ -1,0 +1,6 @@
+{
+  "name": "OBD2 Авто",
+  "description": "Приложение для автомобиля с выводом датчиков OBD2 на экран телефона и Android Auto",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
