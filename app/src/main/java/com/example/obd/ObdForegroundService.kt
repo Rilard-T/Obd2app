@@ -45,10 +45,23 @@ class ObdForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val repo = (application as ObdApplication).telemetryRepository
         val initCtx = AppLocalization.localizedContext(this, repo.settings.value.appLanguage)
-        startForeground(
-            NOTIFICATION_ID,
-            buildNotification(initCtx, initCtx.getString(R.string.fg_connecting))
-        )
+        val startedForeground = try {
+            startForeground(
+                NOTIFICATION_ID,
+                buildNotification(initCtx, initCtx.getString(R.string.fg_connecting))
+            )
+            true
+        } catch (_: SecurityException) {
+            false
+        } catch (_: RuntimeException) {
+            // Includes ForegroundServiceStartNotAllowedException on Android 12+
+            false
+        }
+        if (!startedForeground) {
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
+
         updateJob?.cancel()
         updateJob = serviceScope.launch {
             while (isActive) {
@@ -75,7 +88,9 @@ class ObdForegroundService : Service() {
                     else -> l10nCtx.getString(R.string.fg_waiting)
                 }
                 val manager = getSystemService(NotificationManager::class.java)
-                manager?.notify(NOTIFICATION_ID, buildNotification(l10nCtx, statusText))
+                runCatching {
+                    manager?.notify(NOTIFICATION_ID, buildNotification(l10nCtx, statusText))
+                }
                 delay(1500L)
             }
         }
@@ -113,7 +128,7 @@ class ObdForegroundService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(l10nCtx.getString(R.string.fg_notif_title))
             .setContentText(text)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_car_gauges)
             .setOngoing(true)
             .setSilent(true)
             .setContentIntent(openAppIntent)

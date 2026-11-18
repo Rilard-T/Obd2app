@@ -621,7 +621,9 @@ class ObdTelemetryRepository(
                 statusMessage = if (isEng) "Simulation mode: no fault codes" else "Режим симуляции: неисправности отсутствуют"
             )
             pushWidgetSnapshot()
-            startForegroundService()
+            if (bluetoothScanner.hasBluetoothPermissions()) {
+                startForegroundService()
+            }
 
             simTick = 0
             while (isActive) {

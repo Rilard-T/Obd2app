@@ -77,4 +77,24 @@ class ExampleRobolectricTest {
       assertTrue("Google Play build must resolve CarAppService as IOT", iotResolved.isNotEmpty())
     }
   }
+
+  @Test
+  fun `launching MainActivity succeeds without runtime crash`() {
+    val controller = org.robolectric.Robolectric.buildActivity(MainActivity::class.java).setup()
+    val activity = controller.get()
+    assertFalse(activity.isFinishing)
+    controller.pause().stop().destroy()
+  }
+
+  @Test
+  fun `starting ObdForegroundService and simulation mode without BT permissions does not crash`() {
+    val serviceController = org.robolectric.Robolectric.buildService(com.example.obd.ObdForegroundService::class.java)
+    serviceController.create()
+    serviceController.startCommand(0, 1)
+    serviceController.destroy()
+
+    val app = ApplicationProvider.getApplicationContext<ObdApplication>()
+    app.telemetryRepository.startSimulationMode()
+    app.telemetryRepository.disconnect()
+  }
 }

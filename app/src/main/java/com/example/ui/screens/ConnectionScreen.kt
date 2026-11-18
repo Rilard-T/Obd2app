@@ -510,7 +510,13 @@ fun ConnectionScreen(
                         )
                         Button(
                             onClick = {
-                                enableBtLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+                                runCatching {
+                                    enableBtLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+                                }.onFailure {
+                                    runCatching {
+                                        context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+                                    }
+                                }
                             },
                             modifier = Modifier.testTag("enable_bt_button"),
                             colors = ButtonDefaults.buttonColors(containerColor = MotorsportAmber)
@@ -1437,12 +1443,13 @@ fun ConnectionScreen(
                         }
                     }
 
-                    if (!backupStatus.isNullOrBlank()) {
+                    val currentBackupStatus = backupStatus
+                    if (!currentBackupStatus.isNullOrBlank()) {
                         Text(
-                            text = backupStatus!!,
+                            text = currentBackupStatus,
                             style = MaterialTheme.typography.labelMedium,
-                            color = if (backupStatus!!.contains("Ошибка", ignoreCase = true) ||
-                                backupStatus!!.contains("error", ignoreCase = true)
+                            color = if (currentBackupStatus.contains("Ошибка", ignoreCase = true) ||
+                                currentBackupStatus.contains("error", ignoreCase = true)
                             ) {
                                 RedlineCrimson
                             } else {

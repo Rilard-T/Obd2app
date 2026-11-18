@@ -52,7 +52,8 @@ class CloudAuthManager(context: Context) {
     }
 
     suspend fun attemptSilentSignIn(activityContext: Context): CloudUserSummary? {
-        Firebase.auth.currentUser?.let { return it.toSummary() }
+        if (FirebaseApp.getApps(appContext).isEmpty()) return null
+        runCatching { Firebase.auth.currentUser }.getOrNull()?.let { return it.toSummary() }
         if (webClientId.isBlank()) return null
 
         return try {
