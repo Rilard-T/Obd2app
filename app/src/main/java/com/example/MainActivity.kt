@@ -26,10 +26,12 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.ShowChart
 import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -46,6 +48,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,6 +61,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -66,16 +72,23 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.obd.ai.configureAppCheck
 import com.example.obd.i18n.AppLocalization
 import com.example.obd.i18n.LocalL10nContext
 import com.example.obd.i18n.l10nStr
 import com.example.obd.model.ObdConnectionState
 import com.example.ui.ObdViewModel
 import com.example.ui.components.AndroidAutoPreviewDialog
+import com.example.ui.components.GarageManagerDialog
+import com.example.ui.components.HudOverlayDialog
+import com.example.ui.components.ProUpgradeDialog
+import com.example.ui.components.SafetyDisclaimerDialog
+import com.example.ui.components.VoiceAssistantDialog
 import com.example.ui.screens.ConnectionScreen
 import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.DiagnosticsScreen
 import com.example.ui.screens.SensorsScreen
+import com.example.ui.screens.TripAndPerformanceScreen
 import com.example.ui.theme.CarbonObsidian
 import com.example.ui.theme.CockpitSurface
 import com.example.ui.theme.MotorsportAmber
@@ -87,6 +100,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object DashboardRoute
 @Serializable data object SensorsRoute
+@Serializable data object TripRoute
 @Serializable data object DiagnosticsRoute
 @Serializable data object ConnectionRoute
 
@@ -101,6 +115,7 @@ private data class NavDestinationItem<T : Any>(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        configureAppCheck(this, intent)
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
@@ -129,6 +144,34 @@ fun ObdAutoRootApp(
         val backStackEntry by navController.currentBackStackEntryAsState()
         val currentDestination = backStackEntry?.destination
         var showAaPreview by remember { mutableStateOf(false) }
+        var showHudOverlay by remember { mutableStateOf(false) }
+        var showGarageDialog by remember { mutableStateOf(false) }
+        var showSafetyManualDialog by remember { mutableStateOf(false) }
+        var showProDialog by remember { mutableStateOf(false) }
+        var showVoiceDialog by remember { mutableStateOf(false) }
+        val lifecycleOwner = LocalLifecycleOwner.current
+
+        fun requirePro(action: () -> Unit) {
+            if (uiState.hasProAccess) {
+                action()
+            } else {
+                showProDialog = true
+            }
+        }
+
+        DisposableEffect(lifecycleOwner) {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    viewModel.refreshBilling()
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        }
+
+        LaunchedEffect(Unit) {
+            viewModel.attemptSilentCloudSignIn(context)
+        }
 
         val startupPermissionLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -175,6 +218,75 @@ fun ObdAutoRootApp(
             )
         }
 
+        if (showHudOverlay) {
+            HudOverlayDialog(
+                uiState = uiState,
+                onDismiss = { showHudOverlay = false }
+            )
+        }
+
+        if (showVoiceDialog) {
+            VoiceAssistantDialog(
+                state = uiState.voiceAssistantState,
+                isEnglish = uiState.settings.isEnglish,
+                onAskQuestion = { question, speak ->
+                    viewModel.askVoiceDriverQuestion(question, speak)
+                },
+                onDismiss = { showVoiceDialog = false }
+            )
+        }
+
+        if (showGarageDialog) {
+            GarageManagerDialog(
+                uiState = uiState,
+                onSelectProfile = { viewModel.selectVehicleProfile(it) },
+                onSaveProfile = { existingId, name, vin, disp, fuel, redline, shift, price, preset, odo, curbWeightKg ->
+                    viewModel.saveVehicleProfile(
+                        existingId = existingId,
+                        name = name,
+                        vin = vin,
+                        displacementLiters = disp,
+                        fuelType = fuel,
+                        redlineRpm = redline,
+                        shiftLightRpm = shift,
+                        fuelPricePerLiter = price,
+                        preferredPresetId = preset,
+                        odometerKm = odo,
+                        curbWeightKg = curbWeightKg
+                    )
+                },
+                onDeleteProfile = { viewModel.deleteVehicleProfile(it) },
+                onRequestAiSuggestion = { vin, query ->
+                    requirePro { viewModel.requestAiVehicleSuggestion(vin, query) }
+                },
+                onClearAiSuggestion = { viewModel.clearAiVehicleSuggestion() },
+                onApplyAiSuggestionExtras = { suggestion ->
+                    viewModel.applyAiSuggestionExtras(suggestion)
+                },
+                onDismiss = { showGarageDialog = false }
+            )
+        }
+
+        if ((uiState.settingsLoaded && !uiState.settings.hasAcceptedSafetyDisclaimer) || showSafetyManualDialog) {
+            SafetyDisclaimerDialog(
+                onAccept = {
+                    viewModel.acceptSafetyDisclaimer()
+                    showSafetyManualDialog = false
+                }
+            )
+        }
+
+        if (showProDialog) {
+            ProUpgradeDialog(
+                isEnglish = uiState.settings.isEnglish,
+                isProPreviewEnabled = uiState.settings.isProPreviewEnabled,
+                billingUiState = uiState.billingUiState,
+                onToggleProPreview = { viewModel.setProPreviewEnabled(it) },
+                onPurchaseSku = { act, sku -> viewModel.launchProPurchase(act, sku) },
+                onDismiss = { showProDialog = false }
+            )
+        }
+
         val destinations = listOf(
             NavDestinationItem(
                 route = DashboardRoute,
@@ -189,6 +301,13 @@ fun ObdAutoRootApp(
                 selectedIcon = Icons.Filled.ShowChart,
                 unselectedIcon = Icons.Outlined.ShowChart,
                 testTag = "nav_sensors"
+            ),
+            NavDestinationItem(
+                route = TripRoute,
+                label = l10nStr(R.string.nav_trip),
+                selectedIcon = Icons.Filled.Timer,
+                unselectedIcon = Icons.Outlined.Timer,
+                testTag = "nav_trip"
             ),
             NavDestinationItem(
                 route = DiagnosticsRoute,
@@ -332,6 +451,8 @@ fun ObdAutoRootApp(
                                     navigateSingleTop(SensorsRoute)
                                 },
                                 onOpenAndroidAutoPreview = { showAaPreview = true },
+                                onOpenHudMode = { requirePro { showHudOverlay = true } },
+                                onOpenVoiceAssistant = { requirePro { showVoiceDialog = true } },
                                 onDismissAlert = { viewModel.dismissActiveAlert() }
                             )
                         }
@@ -345,31 +466,112 @@ fun ObdAutoRootApp(
                                 onSetUseFahrenheit = { viewModel.setUseFahrenheit(it) },
                                 onSetPressureUnit = { viewModel.setPressureUnit(it) },
                                 onAddCustomPid = { name, shortName, modeAndPid, header, equation, unit, minV, maxV, dec, warnH, critH, warnL, critL, alertsEn ->
-                                    viewModel.addCustomPid(
-                                        name, shortName, modeAndPid, header, equation, unit,
-                                        minV, maxV, dec, warnH, critH, warnL, critL, alertsEn
-                                    )
+                                    requirePro {
+                                        viewModel.addCustomPid(
+                                            name, shortName, modeAndPid, header, equation, unit,
+                                            minV, maxV, dec, warnH, critH, warnL, critL, alertsEn
+                                        )
+                                    }
                                 },
-                                onUpdateCustomPid = { viewModel.updateCustomPid(it) },
-                                onDeleteCustomPid = { viewModel.deleteCustomPid(it) },
+                                onUpdateCustomPid = { pid -> requirePro { viewModel.updateCustomPid(pid) } },
+                                onDeleteCustomPid = { id -> requirePro { viewModel.deleteCustomPid(id) } },
                                 onImportTorqueCsv = { csv, onComplete ->
-                                    viewModel.importTorqueCsv(csv, onComplete)
+                                    requirePro { viewModel.importTorqueCsv(csv, onComplete) }
                                 },
                                 onTestLivePid = { modeAndPid, header, equation ->
                                     viewModel.probeCustomPid(modeAndPid, header, equation)
                                 },
-                                onSetSensorAlertOverride = { viewModel.setSensorAlertOverride(it) }
+                                onSetSensorAlertOverride = { viewModel.setSensorAlertOverride(it) },
+                                onStartDatalogger = { requirePro { viewModel.startDatalogger() } },
+                                onStopDatalogger = { viewModel.stopDatalogger() },
+                                onClearDatalogger = { viewModel.clearDatalogger() },
+                                onBuildDataloggerCsv = {
+                                    if (uiState.hasProAccess) {
+                                        viewModel.buildDataloggerCsv()
+                                    } else {
+                                        showProDialog = true
+                                        ""
+                                    }
+                                },
+                                onImportOemPack = { packId, onComplete ->
+                                    requirePro { viewModel.importOemPack(packId, onComplete) }
+                                }
+                            )
+                        }
+                        composable<TripRoute> {
+                            TripAndPerformanceScreen(
+                                uiState = uiState,
+                                onOpenGarage = { showGarageDialog = true },
+                                onOpenHud = { requirePro { showHudOverlay = true } },
+                                onResetTrip = { viewModel.resetTrip() },
+                                onSaveTrip = { viewModel.saveCurrentTripToHistory() },
+                                onDeleteTrip = { viewModel.deleteTripRecord(it) },
+                                onClearTrips = { viewModel.clearTripHistory() },
+                                onBuildTripsCsv = { trips -> viewModel.buildTripsCsv(trips) },
+                                onSelectAccelDiscipline = { viewModel.selectAccelDiscipline(it) },
+                                onArmAccelTimer = { requirePro { viewModel.armAccelTimer() } },
+                                onResetAccelTimer = { viewModel.resetAccelTimer() },
+                                onClearAccelRuns = { viewModel.clearAccelRuns() },
+                                onSetAutoSaveTrip = { viewModel.setAutoSaveTripOnDisconnect(it) },
+                                onSetFuelCalibrationFactor = { viewModel.setFuelCalibrationFactor(it) },
+                                onSetSpeedCalibrationFactor = { viewModel.setSpeedCalibrationFactor(it) },
+                                onApplyFuelFillup = { actual, comp, cb ->
+                                    viewModel.applyFuelFillupCalibration(actual, comp, cb)
+                                },
+                                onStartGpsSpeedCheck = { requirePro { viewModel.startGpsSpeedCheck() } },
+                                onStopGpsSpeedCheck = { viewModel.stopGpsSpeedCheck() },
+                                onApplySuggestedGpsFactor = { viewModel.applySuggestedGpsSpeedFactor() },
+                                onAddMaintenanceItem = { title, cat, intKm, intHrs, notes ->
+                                    requirePro { viewModel.addMaintenanceItem(title, cat, intKm, intHrs, notes) }
+                                },
+                                onMarkMaintenanceDone = { viewModel.markMaintenanceDone(it) },
+                                onDeleteMaintenanceItem = { viewModel.deleteMaintenanceItem(it) },
+                                onAnalyzePhoto = { uri, mode -> requirePro { viewModel.analyzePhoto(uri, mode) } },
+                                onClearPhotoAnalysis = { viewModel.clearPhotoAnalysis() },
+                                onUpdateFuelPrice = { newPrice ->
+                                    val p = uiState.activeVehicleProfile
+                                    if (p != null) {
+                                        viewModel.saveVehicleProfile(
+                                            existingId = p.id,
+                                            name = p.name,
+                                            vin = p.vin,
+                                            displacementLiters = p.displacementLiters,
+                                            fuelType = p.fuelTypeEnum,
+                                            redlineRpm = p.redlineRpm,
+                                            shiftLightRpm = p.shiftLightRpm,
+                                            fuelPricePerLiter = newPrice,
+                                            preferredPresetId = p.preferredPresetId,
+                                            odometerKm = p.odometerKm,
+                                            curbWeightKg = p.curbWeightKg
+                                        )
+                                    }
+                                }
                             )
                         }
                         composable<DiagnosticsRoute> {
                             DiagnosticsScreen(
                                 uiState = uiState,
                                 onScanDtcs = { viewModel.scanDtcs() },
+                                onScanFreezeFrame = { viewModel.scanFreezeFrame() },
                                 onClearDtcs = { viewModel.clearDtcs() },
+                                onRunAiFaultAnalysis = { requirePro { viewModel.runAiFaultAnalysis() } },
+                                onClearAiAnalysis = { viewModel.clearAiAnalysis() },
+                                onOpenVoiceAssistant = { requirePro { showVoiceDialog = true } },
                                 onClearHistory = { viewModel.clearScanHistory() },
                                 onBuildErrorReportText = { viewModel.buildErrorReportText() },
                                 onCreateShareableReportFile = { viewModel.createShareableReportFile() },
-                                onClearLogs = { viewModel.clearLogs() }
+                                onClearLogs = { viewModel.clearLogs() },
+                                onRunPrePurchaseInspection = { requirePro { viewModel.runPrePurchaseInspection() } },
+                                onCreatePrePurchasePdfFile = {
+                                    if (uiState.hasProAccess) {
+                                        viewModel.createPrePurchasePdfFile()
+                                    } else {
+                                        showProDialog = true
+                                        null
+                                    }
+                                },
+                                onAnalyzePhoto = { uri, mode -> requirePro { viewModel.analyzePhoto(uri, mode) } },
+                                onClearPhotoAnalysis = { viewModel.clearPhotoAnalysis() }
                             )
                         }
                         composable<ConnectionRoute> {
@@ -381,17 +583,22 @@ fun ObdAutoRootApp(
                                 onStartBleScan = { viewModel.startBleScan() },
                                 onStopBleScan = { viewModel.stopBleScan() },
                                 onConnectDevice = { viewModel.connectToDevice(it) },
+                                onConnectWifi = { host, port -> viewModel.connectWifi(host, port) },
                                 onStartSimulation = { viewModel.startSimulationMode() },
                                 onDisconnect = { viewModel.disconnect() },
                                 onToggleShowAllBt = { viewModel.toggleShowAllBtDevices() },
                                 onToggleAndroidAutoSensor = { viewModel.toggleAndroidAutoSensor(it) },
                                 onSelectDisplayMode = { viewModel.setAndroidAutoDisplayMode(it) },
+                                onSelectDialTheme = { viewModel.setDialTheme(it) },
+                                onSetShiftLightEnabled = { viewModel.setShiftLightEnabled(it) },
+                                onSetShiftLightRpm = { viewModel.setShiftLightRpm(it) },
                                 onSelectPreset = { viewModel.selectCockpitPreset(it) },
                                 onRenamePreset = { id, name -> viewModel.renameCockpitPreset(id, name) },
                                 onSetDialSlot = { idx, id -> viewModel.setFullscreenDialSlot(idx, id) },
                                 onSetStripSlot = { idx, id -> viewModel.setFullscreenStripSlot(idx, id) },
                                 onResetFullscreenDefaults = { viewModel.resetFullscreenLayoutDefaults() },
                                 onSetAutoConnect = { viewModel.setAutoConnectOnLaunch(it) },
+                                onSetAutoReconnect = { viewModel.setAutoReconnectOnDrop(it) },
                                 onSetVoiceAlerts = { viewModel.setVoiceAlertsEnabled(it) },
                                 onSetAaPopupAlerts = { viewModel.setAaPopupAlertsEnabled(it) },
                                 onSetTtsVolume = { viewModel.setTtsVolume(it) },
@@ -401,8 +608,27 @@ fun ObdAutoRootApp(
                                 onTriggerTestAlert = { viewModel.triggerTestAlert() },
                                 onRunAdapterBenchmark = { viewModel.runAdapterBenchmark() },
                                 onOpenAndroidAutoPreview = { showAaPreview = true },
+                                onOpenGarage = { showGarageDialog = true },
+                                onExportConfigBackupJson = { viewModel.exportConfigBackupJson() },
+                                onImportConfigBackupJson = { json, cb ->
+                                    viewModel.importConfigBackupJson(json, cb)
+                                },
+                                onOpenSafetyDialog = { showSafetyManualDialog = true },
+                                onOpenProDialog = { showProDialog = true },
                                 onOpenErrorLogs = { navigateSingleTop(DiagnosticsRoute) },
-                                onSetAppLanguage = { viewModel.setAppLanguage(it) }
+                                onSetAppLanguage = { viewModel.setAppLanguage(it) },
+                                onRefreshUsbDevices = { viewModel.refreshUsbDevices() },
+                                onRequestUsbPermission = { viewModel.requestUsbPermission(it) },
+                                onConnectUsbDevice = { viewModel.connectUsbDevice(it) },
+                                onSignInGoogle = { ctx -> requirePro { viewModel.signInWithGoogle(ctx) } },
+                                onSyncCloudNow = { requirePro { viewModel.syncCloudNow() } },
+                                onSignOutCloud = { viewModel.signOutCloud() },
+                                onSetFastSlowPolling = { viewModel.setFastSlowPollingEnabled(it) },
+                                onSetAutoConnectBtCar = { viewModel.setAutoConnectOnBtCar(it) },
+                                onStartBatteryTest = { viewModel.startBatteryTest() },
+                                onCancelBatteryTest = { viewModel.cancelBatteryTest() },
+                                onSendTerminalCommand = { cmd -> requirePro { viewModel.sendRawElmCommand(cmd) } },
+                                onClearTerminal = { viewModel.clearTerminal() }
                             )
                         }
                     }

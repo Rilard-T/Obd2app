@@ -19,9 +19,13 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.NotificationsNone
@@ -36,7 +40,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,8 +64,10 @@ import com.example.obd.model.PressureUnit
 import com.example.obd.model.SensorAlertOverride
 import com.example.obd.model.SensorCategory
 import com.example.obd.model.TelemetrySensor
+import com.example.obd.protocol.OemPidCatalog
 import com.example.ui.ObdUiState
 import com.example.ui.components.CustomPidEditorDialog
+import com.example.ui.components.MultiChannelChart
 import com.example.ui.components.SensorAlertConfigDialog
 import com.example.ui.components.TelemetryHistoryChart
 import com.example.ui.theme.CarbonObsidian
@@ -72,6 +80,9 @@ import com.example.ui.theme.RedlineCrimson
 import com.example.ui.theme.TelemetryCyan
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextSecondary
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun SensorsScreen(
@@ -103,6 +114,11 @@ fun SensorsScreen(
     onImportTorqueCsv: (String, (Int) -> Unit) -> Unit,
     onTestLivePid: suspend (modeAndPid: String, header: String, equation: String) -> LivePidProbeResult,
     onSetSensorAlertOverride: (SensorAlertOverride) -> Unit,
+    onStartDatalogger: () -> Unit,
+    onStopDatalogger: () -> Unit,
+    onClearDatalogger: () -> Unit,
+    onBuildDataloggerCsv: () -> String,
+    onImportOemPack: (packId: String, (Int) -> Unit) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -112,6 +128,26 @@ fun SensorsScreen(
     var editingEntity by remember { mutableStateOf<CustomPidEntity?>(null) }
     var editingAlertSensor by remember { mutableStateOf<TelemetrySensor?>(null) }
     var importFeedback by remember { mutableStateOf<String?>(null) }
+    var loggerExportStatus by remember { mutableStateOf<String?>(null) }
+    var oemImportFeedback by remember { mutableStateOf<String?>(null) }
+
+    val loggerCsvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        if (uri != null) {
+            val saved = runCatching {
+                val csv = onBuildDataloggerCsv()
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    out.write(csv.toByteArray(Charsets.UTF_8))
+                }
+            }.isSuccess
+            loggerExportStatus = if (saved) {
+                l10nCtx.getString(R.string.report_save_ok)
+            } else {
+                l10nCtx.getString(R.string.report_save_fail)
+            }
+        }
+    }
 
     val csvPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -241,6 +277,118 @@ fun SensorsScreen(
             )
         }
 
+        // Synchronized Blackbox Datalogger & Multi-Channel Chart Card
+        item {
+            val loggerState = uiState.dataloggerState
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("datalogger_card"),
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(containerColor = CockpitSurface),
+                border = BorderStroke(
+                    1.dp,
+                    if (loggerState.isRecording) RedlineCrimson.copy(alpha = 0.7f) else TelemetryCyan.copy(alpha = 0.4f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = l10nStr(R.string.datalogger_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = l10nStr(
+                                    R.string.datalogger_status,
+                                    loggerState.frames.size,
+                                    if (loggerState.isRecording) l10nStr(R.string.datalogger_recording_on)
+                                    else l10nStr(R.string.datalogger_recording_off)
+                                ),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (loggerState.isRecording) RedlineCrimson else TextSecondary
+                            )
+                        }
+                        if (loggerState.frames.isNotEmpty() && !loggerState.isRecording) {
+                            TextButton(onClick = onClearDatalogger) {
+                                Text(l10nStr(R.string.action_clear), color = TextMuted)
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = l10nStr(R.string.datalogger_desc),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                if (loggerState.isRecording) onStopDatalogger() else onStartDatalogger()
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (loggerState.isRecording) RedlineCrimson else TelemetryCyan
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("datalogger_toggle_button")
+                        ) {
+                            Icon(
+                                imageVector = if (loggerState.isRecording) Icons.Filled.Stop else Icons.Filled.FiberManualRecord,
+                                contentDescription = null,
+                                tint = CarbonObsidian,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (loggerState.isRecording) l10nStr(R.string.datalogger_rec_stop)
+                                else l10nStr(R.string.datalogger_rec_start),
+                                color = CarbonObsidian
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                                loggerCsvLauncher.launch("obd2_datalog_$stamp.csv")
+                            },
+                            enabled = loggerState.frames.isNotEmpty(),
+                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.6f)),
+                            modifier = Modifier.testTag("datalogger_export_csv_button")
+                        ) {
+                            Icon(Icons.Filled.Download, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(l10nStr(R.string.datalogger_export_csv), color = TelemetryCyan)
+                        }
+                    }
+
+                    loggerExportStatus?.let { msg ->
+                        Text(text = msg, style = MaterialTheme.typography.labelMedium, color = NominalEmerald)
+                    }
+
+                    MultiChannelChart(
+                        frames = loggerState.frames,
+                        sensors = allSensors,
+                        useFahrenheit = uiState.settings.useFahrenheit,
+                        pressureUnit = uiState.settings.pressureUnit,
+                        isEnglish = isEng
+                    )
+                }
+            }
+        }
+
         // Custom Torque Pro PID toolbar
         item {
             Card(
@@ -322,6 +470,102 @@ fun SensorsScreen(
                             style = MaterialTheme.typography.labelMedium,
                             color = NominalEmerald,
                             modifier = Modifier.testTag("csv_import_feedback")
+                        )
+                    }
+                }
+            }
+        }
+
+        // OEM Brand PID Catalog Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("oem_pid_catalog_card"),
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(containerColor = CockpitSurface),
+                border = BorderStroke(1.dp, MotorsportAmber.copy(alpha = 0.4f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Build,
+                            contentDescription = null,
+                            tint = MotorsportAmber,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = l10nStr(R.string.oem_catalog_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = l10nStr(R.string.oem_catalog_desc),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(OemPidCatalog.packs, key = { it.id }) { pack ->
+                            Surface(
+                                shape = MaterialTheme.shapes.small,
+                                color = CockpitSurfaceElevated,
+                                border = BorderStroke(1.dp, CockpitBorder),
+                                modifier = Modifier.width(230.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = pack.brandName,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MotorsportAmber
+                                    )
+                                    Text(
+                                        text = pack.localizedSubtitle(isEng),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextSecondary,
+                                        maxLines = 2
+                                    )
+                                    OutlinedButton(
+                                        onClick = {
+                                            onImportOemPack(pack.id) { added ->
+                                                oemImportFeedback = if (added > 0) {
+                                                    l10nCtx.getString(R.string.oem_pack_imported, added)
+                                                } else {
+                                                    l10nCtx.getString(R.string.oem_pack_already)
+                                                }
+                                            }
+                                        },
+                                        border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.65f)),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("import_oem_pack_${pack.id}")
+                                    ) {
+                                        Text(
+                                            text = l10nStr(R.string.oem_pack_import_btn, pack.pids.size),
+                                            color = TelemetryCyan
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    oemImportFeedback?.let { msg ->
+                        Text(
+                            text = msg,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = NominalEmerald,
+                            modifier = Modifier.testTag("oem_import_feedback")
                         )
                     }
                 }

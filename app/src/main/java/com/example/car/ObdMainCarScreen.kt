@@ -57,13 +57,18 @@ class ObdMainCarScreen(
         lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onCreate(owner: LifecycleOwner) {
                 lifecycleScope.launch {
-                    combine(
+                    val primaryFlow = combine(
                         repository.connectionState,
                         repository.readings,
                         repository.dtcState,
                         repository.settings,
                         repository.sensors
-                    ) { _, _, _, _, _ -> Unit }.collectLatest {
+                    ) { _, _, _, _, _ -> Unit }
+                    combine(
+                        primaryFlow,
+                        repository.maintenanceItems,
+                        repository.vehicleProfiles
+                    ) { _, _, _ -> Unit }.collectLatest {
                         val now = System.currentTimeMillis()
                         if (now - lastInvalidateMs >= 550L) {
                             lastInvalidateMs = now
@@ -236,7 +241,8 @@ class ObdMainCarScreen(
         val templateBuilder = ListTemplate.Builder()
         var totalAdded = 0
 
-        if (surfaceController != null) {
+        if (surfaceController != null && totalAdded + 2 <= listLimit) {
+            val presetName = settings.activePreset.localizedName(isEng)
             val modeRowList = ItemList.Builder()
                 .addItem(
                     Row.Builder()
@@ -247,9 +253,35 @@ class ObdMainCarScreen(
                         }
                         .build()
                 )
+                .addItem(
+                    Row.Builder()
+                        .setTitle(l10nCtx.getString(R.string.car_preset_switch_title, presetName))
+                        .addText(l10nCtx.getString(R.string.car_preset_switch_sub))
+                        .setOnClickListener {
+                            repository.cycleNextCockpitPreset()
+                        }
+                        .build()
+                )
                 .build()
             templateBuilder.addSectionedList(
                 SectionedItemList.create(modeRowList, l10nCtx.getString(R.string.car_screen_mode_section))
+            )
+            totalAdded += 2
+        } else if (totalAdded < listLimit) {
+            val presetName = settings.activePreset.localizedName(isEng)
+            val presetList = ItemList.Builder()
+                .addItem(
+                    Row.Builder()
+                        .setTitle(l10nCtx.getString(R.string.car_preset_switch_title, presetName))
+                        .addText(l10nCtx.getString(R.string.car_preset_switch_sub))
+                        .setOnClickListener {
+                            repository.cycleNextCockpitPreset()
+                        }
+                        .build()
+                )
+                .build()
+            templateBuilder.addSectionedList(
+                SectionedItemList.create(presetList, l10nCtx.getString(R.string.car_screen_mode_section))
             )
             totalAdded++
         }
@@ -328,6 +360,7 @@ class ObdMainCarScreen(
         val dtc = repository.dtcState.value
         val listLimit = getConstraintLimit(ConstraintManager.CONTENT_LIMIT_TYPE_LIST, 6)
         val itemList = ItemList.Builder()
+        var addedRows = 0
 
         val milTitle = if (dtc.milOn) {
             l10nCtx.getString(R.string.mil_active)
@@ -341,21 +374,65 @@ class ObdMainCarScreen(
                 .addText(milSubtitle)
                 .build()
         )
+        addedRows++
 
-        itemList.addItem(
-            Row.Builder()
-                .setTitle(
-                    if (dtc.isScanning) l10nCtx.getString(R.string.car_dtc_scanning)
-                    else l10nCtx.getString(R.string.car_dtc_read_title)
-                )
-                .addText(l10nCtx.getString(R.string.car_dtc_read_sub))
-                .setOnClickListener {
-                    repository.scanDtcs()
-                }
-                .build()
-        )
+        if (addedRows < listLimit) {
+            itemList.addItem(
+                Row.Builder()
+                    .setTitle(l10nCtx.getString(R.string.car_ai_summary_title))
+                    .addText(l10nCtx.getString(R.string.car_ai_summary_sub))
+                    .setOnClickListener {
+                        repository.speakCarStatusSummary()
+                    }
+                    .build()
+            )
+            addedRows++
+        }
 
-        if (dtc.codes.isNotEmpty()) {
+        // Maintenance overdue / due-soon alert row
+        val activeProfile = repository.vehicleProfiles.value.find {
+            it.id == settings.activeVehicleProfileId
+        } ?: repository.vehicleProfiles.value.firstOrNull()
+        val odo = activeProfile?.odometerKm ?: 0f
+        val urgentMaint = repository.maintenanceItems.value
+            .map { item ->
+                val remKm = (item.intervalKm - (odo - item.lastServiceOdometerKm).coerceAtLeast(0f)).toInt()
+                item to remKm
+            }
+            .minByOrNull { it.second }
+        if (urgentMaint != null && urgentMaint.second <= 1000 && addedRows < listLimit) {
+            val (mItem, remKm) = urgentMaint
+            val sub = if (remKm <= 0) {
+                l10nCtx.getString(R.string.car_maint_due_sub, kotlin.math.abs(remKm))
+            } else {
+                l10nCtx.getString(R.string.car_maint_soon_sub, remKm)
+            }
+            itemList.addItem(
+                Row.Builder()
+                    .setTitle(l10nCtx.getString(R.string.car_maint_overdue_title, mItem.title))
+                    .addText(sub)
+                    .build()
+            )
+            addedRows++
+        }
+
+        if (addedRows < listLimit) {
+            itemList.addItem(
+                Row.Builder()
+                    .setTitle(
+                        if (dtc.isScanning) l10nCtx.getString(R.string.car_dtc_scanning)
+                        else l10nCtx.getString(R.string.car_dtc_read_title)
+                    )
+                    .addText(l10nCtx.getString(R.string.car_dtc_read_sub))
+                    .setOnClickListener {
+                        repository.scanDtcs()
+                    }
+                    .build()
+            )
+            addedRows++
+        }
+
+        if (dtc.codes.isNotEmpty() && addedRows < listLimit) {
             itemList.addItem(
                 Row.Builder()
                     .setTitle(l10nCtx.getString(R.string.car_dtc_clear_title))
@@ -365,9 +442,10 @@ class ObdMainCarScreen(
                     }
                     .build()
             )
+            addedRows++
         }
 
-        val remainingSlots = (listLimit - 3).coerceAtLeast(1)
+        val remainingSlots = (listLimit - addedRows).coerceAtLeast(0)
         for (code in dtc.codes.take(remainingSlots)) {
             itemList.addItem(
                 Row.Builder()
@@ -422,11 +500,27 @@ class ObdMainCarScreen(
                 l10nCtx.getString(R.string.car_conn_disconn_sub)
         }
 
+        val activeProfile = repository.vehicleProfiles.value.find {
+            it.id == settings.activeVehicleProfileId
+        } ?: repository.vehicleProfiles.value.firstOrNull()
+        val presetName = settings.activePreset.localizedName(isEng)
+
         val paneBuilder = Pane.Builder()
             .addRow(
                 Row.Builder()
                     .setTitle(statusTitle)
                     .addText(statusDetail)
+                    .build()
+            )
+            .addRow(
+                Row.Builder()
+                    .setTitle(
+                        l10nCtx.getString(
+                            R.string.car_vehicle_row_title,
+                            activeProfile?.name ?: "OBD2"
+                        )
+                    )
+                    .addText(l10nCtx.getString(R.string.car_preset_switch_title, presetName))
                     .build()
             )
             .addRow(
@@ -505,6 +599,15 @@ class ObdMainCarScreen(
                 Action.Builder()
                     .setTitle(l10nCtx.getString(R.string.car_fullscreen_btn))
                     .setOnClickListener { launchFullscreenCockpit() }
+                    .build()
+            )
+            actionCount++
+        }
+        if (actionCount < 2) {
+            paneBuilder.addAction(
+                Action.Builder()
+                    .setTitle(l10nCtx.getString(R.string.car_ai_summary_title))
+                    .setOnClickListener { repository.speakCarStatusSummary() }
                     .build()
             )
         }

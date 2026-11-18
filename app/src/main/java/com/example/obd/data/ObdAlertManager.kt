@@ -167,6 +167,12 @@ class ObdAlertManager(
         }
     }
 
+    fun speakText(text: String, settings: ObdUserSettings) {
+        val cleaned = text.trim()
+        if (cleaned.isEmpty()) return
+        speak(cleaned, settings)
+    }
+
     private fun speak(text: String, settings: ObdUserSettings) {
         if (ttsReady) {
             tts?.let { speakWithEngine(it, text, settings) }

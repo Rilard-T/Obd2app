@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">OBD2 Авто</string>
+    <string name="widget_title">OBD2 Авто</string>
     <string name="car_app_description">Телеметрия и датчики автомобиля через OBD2 в Android Auto</string>
 
     <!-- Navigation & Status -->
@@ -307,4 +308,277 @@
     <string name="car_conn_proto">Протокол: %1$s • %2$s Гц</string>
     <string name="car_conn_sim_sub">Тестовые данные датчиков • %1$s Гц</string>
     <string name="car_conn_disconn_sub">Выберите адаптер на телефоне или включите тест-режим</string>
+
+    <!-- Navigation & Quick HUD -->
+    <string name="nav_trip">Поездки</string>
+    <string name="btn_hud_mode">HUD Проекция</string>
+    <string name="hud_title">HUD Дисплей</string>
+    <string name="hud_mirror_toggle">Зеркало на стекло</string>
+    <string name="hud_shift_badge">ПЕРЕКЛЮЧЕНИЕ</string>
+    <string name="hud_no_connection">Нет активного потока OBD2</string>
+
+    <!-- Deep Diagnostics: VIN, I/M Readiness, Freeze Frame, AI Analysis -->
+    <string name="diag_vin_title">Идентификация ЭБУ (Mode 09)</string>
+    <string name="diag_vin_label">VIN: %1$s</string>
+    <string name="diag_cal_label">Калибровка: %1$s</string>
+    <string name="diag_vin_profile_match">Профиль: %1$s</string>
+    <string name="diag_vin_unavailable">VIN пока не считан</string>
+    <string name="diag_im_title">Готовность систем (I/M Readiness)</string>
+    <string name="diag_im_all_ready">Все системы прошли самодиагностику</string>
+    <string name="diag_im_not_ready">Не все мониторы готовы (возможен недавний сброс ошибок)</string>
+    <string name="diag_im_ready_badge">Готов</string>
+    <string name="diag_im_pending_badge">Не готов</string>
+    <string name="diag_im_diesel_note">Дизельный профиль (CI)</string>
+    <string name="diag_ff_title">Стоп-кадр ошибки (Freeze Frame Mode 02)</string>
+    <string name="diag_ff_read_btn">Считать стоп-кадр</string>
+    <string name="diag_ff_trigger">Код триггера: %1$s</string>
+    <string name="diag_ff_empty">Стоп-кадр отсутствует или память чиста</string>
+    <string name="diag_ai_title">Умный разбор неисправностей</string>
+    <string name="diag_ai_subtitle">Анализ DTC, стоп-кадра и топливных коррекций через Gemini AI</string>
+    <string name="diag_ai_run_btn">Разобрать с AI</string>
+    <string name="diag_ai_rerun_btn">Обновить разбор</string>
+    <string name="diag_ai_clear_btn">Скрыть</string>
+    <string name="diag_ai_loading">Анализирую параметры ЭБУ…</string>
+
+    <!-- Wi-Fi ELM327 & Auto-Reconnect -->
+    <string name="wifi_card_title">Wi-Fi ELM327 (TCP)</string>
+    <string name="wifi_card_desc">Прямое сокет-подключение к адаптерам 192.168.0.10:35000</string>
+    <string name="wifi_host_label">IP-адрес адаптера</string>
+    <string name="wifi_port_label">TCP Порт</string>
+    <string name="wifi_connect_btn">Подкл. Wi-Fi</string>
+    <string name="auto_reconnect_title">Автопереподключение при обрыве</string>
+    <string name="auto_reconnect_sub">До 3 попыток восстановления связи при потере сигнала</string>
+
+    <!-- Cockpit Dial Theme & Shift-Light -->
+    <string name="cockpit_theme_label">Тема приборной панели</string>
+    <string name="cockpit_shift_title">Shift-Light (подсветка оборотов)</string>
+    <string name="cockpit_shift_rpm">Порог Shift-Light: %1$d об/мин</string>
+
+    <!-- Garage, Trip Computer & Performance Timer -->
+    <string name="garage_title">Гараж и профили авто</string>
+    <string name="garage_active_car">Автомобиль: %1$s</string>
+    <string name="garage_manage_btn">Гараж</string>
+    <string name="garage_add_btn">Добавить авто</string>
+    <string name="garage_bind_vin_btn">Привязать текущий VIN</string>
+    <string name="garage_name_label">Название / модель</string>
+    <string name="garage_vin_label">VIN-номер (необязательно)</string>
+    <string name="garage_disp_label">Объём двигателя (л)</string>
+    <string name="garage_fuel_type_label">Тип топлива</string>
+    <string name="garage_redline_label">Отсечка (об/мин)</string>
+    <string name="garage_shift_label">Порог Shift-Light (об/мин)</string>
+    <string name="garage_fuel_price_label">Цена топлива (за л)</string>
+    <string name="trip_computer_title">Бортовой компьютер</string>
+    <string name="trip_distance">Дистанция</string>
+    <string name="trip_elapsed">Время</string>
+    <string name="trip_instant_fuel">Мгн. расход</string>
+    <string name="trip_avg_fuel">Сред. расход</string>
+    <string name="trip_fuel_used">Израсходовано</string>
+    <string name="trip_cost">Стоимость</string>
+    <string name="trip_avg_speed">Ср. скорость</string>
+    <string name="trip_max_speed">Макс. скор.</string>
+    <string name="trip_save_btn">Сохранить поездку</string>
+    <string name="trip_reset_btn">Сброс</string>
+    <string name="trip_export_csv_btn">Экспорт CSV</string>
+    <string name="trip_history_title">История поездок</string>
+    <string name="trip_history_empty">Сохранённых поездок пока нет</string>
+    <string name="perf_timer_title">Таймер разгона</string>
+    <string name="perf_arm_btn">Старт (Готов)</string>
+    <string name="perf_reset_btn">Сброс</string>
+    <string name="perf_phase_idle">Выберите дисциплину и нажмите «Старт»</string>
+    <string name="perf_phase_armed">Ожидание начала движения… Нажмите на газ!</string>
+    <string name="perf_phase_running">Идёт замер… (%1$s м)</string>
+    <string name="perf_phase_done">Финиш: %1$s с • Пик %2$d км/ч</string>
+    <string name="perf_runs_title">Лучшие замеры</string>
+
+    <!-- Backup, Safety Disclaimer, Billing Pro -->
+    <string name="backup_card_title">Резервная копия JSON</string>
+    <string name="backup_card_desc">Сохраните или восстановите свои Torque PID, профили авто, темы и пресеты панели</string>
+    <string name="backup_export_btn">Экспорт JSON</string>
+    <string name="backup_import_btn">Импорт JSON</string>
+    <string name="backup_export_ok">Резервная копия успешно сохранена</string>
+    <string name="backup_import_ok">Настройки импортированы (+%1$d элементов)</string>
+    <string name="backup_error">Ошибка файла копии: %1$s</string>
+    <string name="safety_title">Безопасность и политика конфиденциальности</string>
+    <string name="safety_body">Используйте диагностику и телеметрию OBD2 на экране телефона только при остановке автомобиля. Для чтения датчиков в движении пользуйтесь экраном Android Auto.\n\nКонфиденциальность: все данные телеметрии, PID, профили авто и истории поездок хранятся локально на устройстве. При нажатии AI-функций («Разобрать с AI», «Голосовой AI», фото-анализ) выбранный снимок параметров ЭБУ или изображение отправляется в Gemini AI. При входе в Google профили и поездки могут синхронизироваться с вашим личным облаком Firebase Firestore.</string>
+    <string name="safety_accept_btn">Понятно, продолжить</string>
+    <string name="safety_privacy_btn">Безопасность и данные</string>
+    <string name="pro_card_title">OBD2 Pro (Google Play)</string>
+    <string name="pro_card_desc">Подписка и пожизненная лицензия Pro-модулей через Google Play Billing:</string>
+    <string name="pro_open_btn">Тарифы Pro</string>
+    <string name="pro_github_card_title">OBD2 Авто • GitHub Direct Edition</string>
+    <string name="pro_github_card_desc">Прямая сборка для распространения через GitHub: все модули телеметрии, AI-диагностики и OEM PID полностью открыты без Google Play Billing.</string>
+    <string name="pro_github_open_btn">О версии GitHub</string>
+    <string name="pro_github_badge">GitHub Direct: все модули активны</string>
+    <string name="pro_github_releases_btn">Релизы на GitHub</string>
+    <string name="pro_dialog_title">OBD2 Авто Pro</string>
+    <string name="pro_preview_toggle">Превью статуса Pro (Debug-сборка)</string>
+    <string name="pro_unlocked_badge">Все модули активны</string>
+    <string name="pro_play_standard_badge">Управление подпиской через Google Play</string>
+    <string name="cd_edit">Редактировать</string>
+    <string name="cd_delete">Удалить</string>
+
+    <!-- Widget -->
+    <string name="widget_description">Телеметрия OBD2, напряжение и пробег авто</string>
+
+    <!-- Mode 07 Pending DTCs & Mode 06 On-Board Monitoring -->
+    <string name="dtc_pending_codes">Ожидающие ошибки Mode 07 (%1$d)</string>
+    <string name="dtc_mode06_title">Мониторинг узлов (Mode 06)</string>
+    <string name="dtc_mode06_pass">НОРМА</string>
+    <string name="dtc_mode06_fail">СБОЙ</string>
+
+    <!-- Datalogger & Multi-Channel Chart -->
+    <string name="datalogger_title">Даталоггер и мульти-график</string>
+    <string name="datalogger_desc">Синхронная запись до 4 каналов в одной оси времени с экспортом в CSV.</string>
+    <string name="datalogger_rec_start">Начать запись</string>
+    <string name="datalogger_rec_stop">Стоп</string>
+    <string name="datalogger_export_csv">CSV</string>
+    <string name="datalogger_status">Кадров: %1$d • %2$s</string>
+    <string name="datalogger_recording_on">Запись идёт…</string>
+    <string name="datalogger_recording_off">Готов</string>
+    <string name="datalogger_empty">Нажмите «Начать запись» при активной телеметрии, чтобы построить многоканальный график.</string>
+    <string name="datalogger_channels_hint">Каналы (до 4):</string>
+    <string name="datalogger_scrub_time">t = %1$s с</string>
+
+    <!-- OEM Brand PID Catalog -->
+    <string name="oem_catalog_title">Каталог OEM PID по маркам</string>
+    <string name="oem_catalog_desc">Готовые пакеты расширенных датчиков (АКПП, ВВБ, DPF, турбо) в 1 касание.</string>
+    <string name="oem_pack_import_btn">Добавить (%1$d)</string>
+    <string name="oem_pack_imported">Добавлено из пакета: %1$d PID</string>
+    <string name="oem_pack_already">Все PID из этого пакета уже добавлены</string>
+
+    <!-- USB OTG Serial -->
+    <string name="usb_card_title">USB OTG адаптер (ELM327)</string>
+    <string name="usb_card_desc">Проводное подключение кабеля (FTDI, CH340, CP2102, PL2303, ELS27) без обрывов Bluetooth.</string>
+    <string name="usb_none">USB-адаптер не обнаружен. Подключите OTG-кабель и нажмите обновить.</string>
+    <string name="usb_grant_btn">Разрешить USB</string>
+
+    <!-- Trip Automation, Calibration & GPS -->
+    <string name="trip_auto_save_title">Автосохранение поездки</string>
+    <string name="trip_auto_save_sub">Сохранять поездки (≥ 0.2 км или ≥ 60 с) при отключении и обновлять одометр</string>
+    <string name="cal_card_title">Калибровка расхода, скорости и GPS</string>
+    <string name="cal_fuel_factor">Поправка расхода: %1$s</string>
+    <string name="cal_speed_factor">Поправка скорости: %1$s</string>
+    <string name="cal_fillup_btn">По чеку АЗС</string>
+    <string name="cal_fillup_title">Калибровка по заправке</string>
+    <string name="cal_actual_liters">Вошло в бак (л)</string>
+    <string name="cal_computer_liters">По БК за пробег (л)</string>
+    <string name="cal_gps_btn_start">Сверка с GPS</string>
+    <string name="cal_gps_btn_stop">Стоп GPS</string>
+    <string name="cal_gps_apply_btn">Применить (%1$s)</string>
+    <string name="cal_gps_live">GPS: %1$s км/ч • OBD: %2$s км/ч (±%3$d м)</string>
+    <string name="cal_gps_waiting">Поиск спутников GPS…</string>
+
+    <!-- Garage Odometer & Maintenance Tracker -->
+    <string name="garage_odometer_label">Пробег / Одометр (км)</string>
+    <string name="maint_card_title">Журнал ТО и интервалы</string>
+    <string name="maint_vehicle_stats">Одометр: %1$s км • Моточасы: %2$s ч</string>
+    <string name="maint_add_btn">Добавить ТО</string>
+    <string name="maint_done_btn">Сделано</string>
+    <string name="maint_remaining_km">Осталось %1$d км</string>
+    <string name="maint_overdue_km">Просрочено на %1$d км</string>
+    <string name="maint_dialog_title">Новая работа ТО</string>
+    <string name="maint_item_title_label">Название (напр. Масло ДВС)</string>
+    <string name="maint_interval_km_label">Интервал (км)</string>
+    <string name="maint_interval_hours_label">Интервал (моточасы, опц.)</string>
+    <string name="maint_notes_label">Заметки / вязкость / артикул</string>
+
+    <!-- Voice AI Assistant -->
+    <string name="voice_ai_btn">Голосовой AI</string>
+    <string name="voice_ai_title">Голосовой AI-механик</string>
+    <string name="voice_ai_desc">Задайте вопрос голосом или текстом — AI ответит с учётом текущих датчиков, ошибок и ТО.</string>
+    <string name="voice_ai_mic_btn">Сказать</string>
+    <string name="voice_ai_input_hint">Напр.: Почему горит Check или норма ли 105°C масла?</string>
+    <string name="voice_ai_send_btn">Спросить</string>
+    <string name="voice_ai_thinking">Анализирую ЭБУ и готовлю ответ…</string>
+    <string name="voice_ai_speak_toggle">Озвучивать ответ (TTS)</string>
+    <string name="voice_ai_no_mic">Голосовой ввод недоступен на устройстве — введите вопрос текстом.</string>
+
+    <!-- Cloud Sync & Google Sign-In -->
+    <string name="cloud_card_title">Облачная синхронизация (Firebase)</string>
+    <string name="cloud_card_desc">Сохраняйте профили авто, ТО, Torque PID и поездки в вашем Google-аккаунте.</string>
+    <string name="cloud_signin_btn">Войти через Google</string>
+    <string name="cloud_sync_btn">Синхронизировать</string>
+    <string name="cloud_signout_btn">Выйти</string>
+    <string name="cloud_syncing">Синхронизация с облаком…</string>
+    <string name="cloud_signing_in">Выполняется вход в Google…</string>
+    <string name="cloud_synced_ok">Синхронизировано: %1$d записей (%2$s)</string>
+
+    <!-- Play Billing -->
+    <string name="pro_buy_btn">Выбрать</string>
+    <string name="pro_entitled_badge">Google Play: Лицензия активна</string>
+    <string name="pro_play_ready_note">Подключено к Google Play Billing</string>
+
+    <!-- Pre-Purchase Inspection + PDF -->
+    <string name="inspect_card_title">Проверка авто перед покупкой</string>
+    <string name="inspect_card_desc">Антифрод-тест сброса ошибок (0131, 0130, 014E, 0121), готовность I/M, Mode 06 и вердикт AI + PDF-отчёт.</string>
+    <string name="inspect_run_btn">Проверить авто</string>
+    <string name="inspect_running">Сканирование блоков ЭБУ…</string>
+    <string name="inspect_export_pdf_btn">Экспорт PDF</string>
+    <string name="inspect_risk_high">ВЫСОКИЙ РИСК: следы недавнего сброса ошибок!</string>
+    <string name="inspect_risk_caution">ВНИМАНИЕ: мониторы не завершены или есть замечания</string>
+    <string name="inspect_risk_none">ЧИСТО: следов маскировки и сброса ошибок не найдено</string>
+    <string name="inspect_metric_dist_clear">Пробег после сброса (0131)</string>
+    <string name="inspect_metric_warmups">Прогревов после сброса (0130)</string>
+    <string name="inspect_metric_time_clear">Время работы (014E)</string>
+    <string name="inspect_metric_mil_dist">С Check Engine (0121)</string>
+    <string name="inspect_ai_verdict_title">Заключение AI-эксперта</string>
+
+    <!-- Battery & Alternator Health Test -->
+    <string name="batt_test_btn">Тест АКБ / генератора</string>
+    <string name="batt_test_title">Тест АКБ, стартера и генератора</string>
+    <string name="batt_phase_resting">Шаг 1/4: Напряжение покоя (зажигание ВКЛ, ДВС заглушён)…</string>
+    <string name="batt_phase_crank">Шаг 2/4: ЗАВЕДИТЕ ДВИГАТЕЛЬ — замер просадки стартера…</string>
+    <string name="batt_phase_idle">Шаг 3/4: Зарядка на холостом ходу…</string>
+    <string name="batt_phase_load">Шаг 4/4: Включите фары и печку — тест под нагрузкой…</string>
+    <string name="batt_phase_done">Тест АКБ и генератора завершён</string>
+    <string name="batt_start_btn">Начать тест</string>
+    <string name="batt_resting_label">Покой</string>
+    <string name="batt_crank_label">Просадка пуск</string>
+    <string name="batt_idle_label">Холостой ход</string>
+    <string name="batt_load_label">Под нагрузкой</string>
+
+    <!-- Fast/Slow Polling & BT Auto-Connect -->
+    <string name="settings_fast_slow_polling">Приоритетный опрос (Fast/Slow PID)</string>
+    <string name="settings_fast_slow_polling_desc">Обороты, скорость и буст опрашиваются в каждом цикле, а температура и уровень топлива — раз в 5 циклов (выше Гц).</string>
+    <string name="settings_bt_car_autoconnect">Авто-старт по Bluetooth авто</string>
+    <string name="settings_bt_car_autoconnect_desc">Запускать подключение к ELM327 при соединении телефона с магнитолой / ГУ автомобиля.</string>
+
+    <!-- Android Auto Enhancements -->
+    <string name="car_ai_summary_title">Голосовая AI-сводка авто</string>
+    <string name="car_ai_summary_sub">Озвучить состояние, ошибки и ТО в дороге</string>
+    <string name="car_preset_switch_title">Пресет приборки: %1$s</string>
+    <string name="car_preset_switch_sub">Нажмите для переключения набора датчиков</string>
+    <string name="car_maint_overdue_title">ТО требует внимания: %1$s</string>
+    <string name="car_maint_due_sub">Просрочено на %1$d км • проверьте на телефоне</string>
+    <string name="car_maint_soon_sub">Осталось %1$d км до замены</string>
+    <string name="car_vehicle_row_title">Авто: %1$s</string>
+
+    <!-- Multimodal Vision & VIN AI Fill -->
+    <string name="vision_dash_light_btn">Фото значка панели (AI)</string>
+    <string name="vision_dash_light_title">AI-расшифровка лампочки на приборке</string>
+    <string name="vision_fuel_receipt_btn">Чек АЗС (AI)</string>
+    <string name="vision_service_invoice_btn">Заказ-наряд (AI)</string>
+    <string name="vision_analyzing">AI анализирует изображение…</string>
+    <string name="vision_apply_receipt_btn">Применить цену (%1$.2f ₽/л)</string>
+    <string name="vision_apply_invoice_btn">Добавить в историю ТО</string>
+    <string name="garage_curb_weight_label">Снаряжённая масса (кг, для дино-расчёта)</string>
+    <string name="garage_ai_autofill_btn">AI-подбор по VIN / модели</string>
+    <string name="garage_ai_loading">AI подбирает параметры авто и регламент ТО…</string>
+    <string name="garage_ai_apply_btn">Заполнить профиль + ТО + OEM PID</string>
+
+    <!-- Virtual Dyno, Curves & Eco Score -->
+    <string name="dyno_card_title">Виртуальное дино и Эко-индекс</string>
+    <string name="dyno_power_label">Мощность</string>
+    <string name="dyno_torque_label">Крутящий момент</string>
+    <string name="dyno_peak_hp">Пик: %1$d л.с. / %2$d Н·м</string>
+    <string name="eco_score_label">Бережность: %1$d/100</string>
+    <string name="eco_details_fmt">Резких манёвров: %1$d • На холодную: %2$d с</string>
+    <string name="accel_curve_title">Кривая разгона (%1$s)</string>
+
+    <!-- ELM327 Interactive Terminal -->
+    <string name="terminal_btn">Терминал ELM327</string>
+    <string name="terminal_title">AT / OBD2 Терминал ELM327</string>
+    <string name="terminal_input_hint">Команда (напр. ATZ, ATI, ATRV, 0100, 03)</string>
+    <string name="terminal_send_btn">Отпр.</string>
+    <string name="terminal_clear_btn">Очистить</string>
 </resources>

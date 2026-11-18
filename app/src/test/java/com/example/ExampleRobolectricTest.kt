@@ -43,4 +43,38 @@ class ExampleRobolectricTest {
     assertFalse(AppLocalization.isEnglish(AppLanguage.RU))
     assertTrue(AppLocalization.isEnglish(AppLanguage.EN))
   }
+
+  @Test
+  @Suppress("DEPRECATION")
+  fun `manifest car app permissions and category match distribution channel`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val pm = context.packageManager
+    val pkgInfo = pm.getPackageInfo(
+      context.packageName,
+      android.content.pm.PackageManager.GET_PERMISSIONS
+    )
+    val perms = pkgInfo.requestedPermissions?.toSet().orEmpty()
+
+    val navIntent = android.content.Intent("androidx.car.app.CarAppService")
+      .addCategory("androidx.car.app.category.NAVIGATION")
+      .setPackage(context.packageName)
+    val iotIntent = android.content.Intent("androidx.car.app.CarAppService")
+      .addCategory("androidx.car.app.category.IOT")
+      .setPackage(context.packageName)
+
+    val navResolved = pm.queryIntentServices(navIntent, 0)
+    val iotResolved = pm.queryIntentServices(iotIntent, 0)
+
+    if (BuildConfig.IS_GITHUB_BUILD) {
+      assertTrue("GitHub build must declare NAVIGATION_TEMPLATES", "androidx.car.app.NAVIGATION_TEMPLATES" in perms)
+      assertTrue("GitHub build must declare ACCESS_SURFACE", "androidx.car.app.ACCESS_SURFACE" in perms)
+      assertTrue("GitHub build must resolve CarAppService as NAVIGATION", navResolved.isNotEmpty())
+      assertTrue("GitHub build uses NAVIGATION instead of IOT", iotResolved.isEmpty())
+    } else {
+      assertFalse("Google Play build must NOT declare NAVIGATION_TEMPLATES", "androidx.car.app.NAVIGATION_TEMPLATES" in perms)
+      assertFalse("Google Play build must NOT declare ACCESS_SURFACE", "androidx.car.app.ACCESS_SURFACE" in perms)
+      assertTrue("Google Play build must NOT resolve CarAppService as NAVIGATION", navResolved.isEmpty())
+      assertTrue("Google Play build must resolve CarAppService as IOT", iotResolved.isNotEmpty())
+    }
+  }
 }

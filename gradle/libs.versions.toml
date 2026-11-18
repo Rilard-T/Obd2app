@@ -42,6 +42,7 @@ credentials = "1.5.0"
 googleid = "1.1.1"
 carApp = "1.7.0"
 kotlinxSerialization = "1.8.0"
+playBilling = "7.1.1"
 
 
 [libraries]
@@ -100,6 +101,7 @@ androidx-car-app = { group = "androidx.car.app", name = "app", version.ref = "ca
 androidx-car-app-projected = { group = "androidx.car.app", name = "app-projected", version.ref = "carApp" }
 androidx-car-app-testing = { group = "androidx.car.app", name = "app-testing", version.ref = "carApp" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+play-billing-ktx = { group = "com.android.billingclient", name = "billing-ktx", version.ref = "playBilling" }
 
 
 [plugins]

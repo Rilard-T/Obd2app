@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">OBD2 Auto</string>
+    <string name="widget_title">OBD2 Auto</string>
     <string name="car_app_description">Car OBD2 telemetry and gauges on your phone and Android Auto</string>
 
     <!-- Navigation & Status -->
@@ -307,4 +308,277 @@
     <string name="car_conn_proto">Protocol: %1$s • %2$s Hz</string>
     <string name="car_conn_sim_sub">Simulated telemetry • %1$s Hz</string>
     <string name="car_conn_disconn_sub">Select an adapter on your phone or enable Demo Mode</string>
+
+    <!-- Navigation & Quick HUD -->
+    <string name="nav_trip">Trip</string>
+    <string name="btn_hud_mode">HUD Mode</string>
+    <string name="hud_title">HUD Projection</string>
+    <string name="hud_mirror_toggle">Windshield Mirror</string>
+    <string name="hud_shift_badge">SHIFT NOW</string>
+    <string name="hud_no_connection">No active OBD2 stream</string>
+
+    <!-- Deep Diagnostics: VIN, I/M Readiness, Freeze Frame, AI Analysis -->
+    <string name="diag_vin_title">Vehicle Identity (Mode 09)</string>
+    <string name="diag_vin_label">VIN: %1$s</string>
+    <string name="diag_cal_label">Calibration: %1$s</string>
+    <string name="diag_vin_profile_match">Profile: %1$s</string>
+    <string name="diag_vin_unavailable">VIN not read yet</string>
+    <string name="diag_im_title">Emissions Readiness (I/M)</string>
+    <string name="diag_im_all_ready">All supported monitors completed</string>
+    <string name="diag_im_not_ready">Some monitors incomplete (codes may have been cleared recently)</string>
+    <string name="diag_im_ready_badge">Ready</string>
+    <string name="diag_im_pending_badge">Incomplete</string>
+    <string name="diag_im_diesel_note">Diesel / Compression profile</string>
+    <string name="diag_ff_title">Freeze Frame Snapshot (Mode 02)</string>
+    <string name="diag_ff_read_btn">Read Freeze Frame</string>
+    <string name="diag_ff_trigger">Trigger DTC: %1$s</string>
+    <string name="diag_ff_empty">No freeze frame captured by ECU</string>
+    <string name="diag_ai_title">Smart Fault Analyzer</string>
+    <string name="diag_ai_subtitle">AI breakdown of DTCs, freeze frame &amp; fuel trims via Gemini</string>
+    <string name="diag_ai_run_btn">Analyze with AI</string>
+    <string name="diag_ai_rerun_btn">Re-analyze</string>
+    <string name="diag_ai_clear_btn">Hide</string>
+    <string name="diag_ai_loading">Analyzing ECU snapshot…</string>
+
+    <!-- Wi-Fi ELM327 & Auto-Reconnect -->
+    <string name="wifi_card_title">Wi-Fi ELM327 (TCP)</string>
+    <string name="wifi_card_desc">Direct socket link to 192.168.0.10:35000 adapters</string>
+    <string name="wifi_host_label">Adapter IP Address</string>
+    <string name="wifi_port_label">TCP Port</string>
+    <string name="wifi_connect_btn">Connect Wi-Fi</string>
+    <string name="auto_reconnect_title">Auto-reconnect on drop</string>
+    <string name="auto_reconnect_sub">Up to 3 automatic retries if adapter link drops</string>
+
+    <!-- Cockpit Dial Theme & Shift-Light -->
+    <string name="cockpit_theme_label">Instrument Cluster Theme</string>
+    <string name="cockpit_shift_title">Shift-Light Indicator</string>
+    <string name="cockpit_shift_rpm">Shift-Light threshold: %1$d RPM</string>
+
+    <!-- Garage, Trip Computer & Performance Timer -->
+    <string name="garage_title">Garage &amp; Vehicle Profiles</string>
+    <string name="garage_active_car">Vehicle: %1$s</string>
+    <string name="garage_manage_btn">Garage</string>
+    <string name="garage_add_btn">Add Vehicle</string>
+    <string name="garage_bind_vin_btn">Bind Current VIN</string>
+    <string name="garage_name_label">Vehicle name / model</string>
+    <string name="garage_vin_label">VIN (optional)</string>
+    <string name="garage_disp_label">Engine displacement (L)</string>
+    <string name="garage_fuel_type_label">Fuel type</string>
+    <string name="garage_redline_label">Redline (RPM)</string>
+    <string name="garage_shift_label">Shift-Light threshold (RPM)</string>
+    <string name="garage_fuel_price_label">Fuel price (per L)</string>
+    <string name="trip_computer_title">Trip Computer</string>
+    <string name="trip_distance">Distance</string>
+    <string name="trip_elapsed">Elapsed</string>
+    <string name="trip_instant_fuel">Instant</string>
+    <string name="trip_avg_fuel">Avg Fuel</string>
+    <string name="trip_fuel_used">Fuel Used</string>
+    <string name="trip_cost">Est. Cost</string>
+    <string name="trip_avg_speed">Avg Speed</string>
+    <string name="trip_max_speed">Peak Speed</string>
+    <string name="trip_save_btn">Save Trip</string>
+    <string name="trip_reset_btn">Reset</string>
+    <string name="trip_export_csv_btn">Export CSV</string>
+    <string name="trip_history_title">Trip History</string>
+    <string name="trip_history_empty">No saved trips yet</string>
+    <string name="perf_timer_title">Performance Timer</string>
+    <string name="perf_arm_btn">Arm Launch</string>
+    <string name="perf_reset_btn">Reset</string>
+    <string name="perf_phase_idle">Select a discipline and tap Arm Launch</string>
+    <string name="perf_phase_armed">Ready — accelerate cleanly to auto-start!</string>
+    <string name="perf_phase_running">Measuring… (%1$s m)</string>
+    <string name="perf_phase_done">Finished: %1$s s • Peak %2$d km/h</string>
+    <string name="perf_runs_title">Recorded Runs</string>
+
+    <!-- Backup, Safety Disclaimer, Billing Pro -->
+    <string name="backup_card_title">JSON Configuration Backup</string>
+    <string name="backup_card_desc">Export or restore custom Torque PIDs, vehicle profiles, themes, and presets</string>
+    <string name="backup_export_btn">Export JSON</string>
+    <string name="backup_import_btn">Import JSON</string>
+    <string name="backup_export_ok">Backup exported successfully</string>
+    <string name="backup_import_ok">Configuration imported (+%1$d items)</string>
+    <string name="backup_error">Backup file error: %1$s</string>
+    <string name="safety_title">Driving Safety &amp; Privacy Notice</string>
+    <string name="safety_body">Interact with phone diagnostics only while parked safely. Use Android Auto while driving.\n\nPrivacy: Telemetry logs, custom PIDs, vehicle profiles, and trip history stay locally on your device. When you explicitly invoke AI features (Fault Analysis, Voice AI, or Photo Scan), the selected ECU snapshot or photo is sent to Gemini AI. When signed in with Google, garage and trip summaries can sync to your personal Firebase Firestore account.</string>
+    <string name="safety_accept_btn">I Understand</string>
+    <string name="safety_privacy_btn">Safety &amp; Privacy</string>
+    <string name="pro_card_title">OBD2 Pro (Google Play)</string>
+    <string name="pro_card_desc">Subscribe or unlock lifetime Pro modules via Google Play Billing:</string>
+    <string name="pro_open_btn">View Pro Plans</string>
+    <string name="pro_github_card_title">OBD2 Auto • GitHub Direct Edition</string>
+    <string name="pro_github_card_desc">Direct GitHub release build: all telemetry, AI diagnostic, and OEM PID modules are unlocked without Google Play Billing.</string>
+    <string name="pro_github_open_btn">About Edition</string>
+    <string name="pro_github_badge">GitHub Direct: all modules active</string>
+    <string name="pro_github_releases_btn">GitHub Releases</string>
+    <string name="pro_dialog_title">OBD2 Auto Pro</string>
+    <string name="pro_preview_toggle">Preview Pro tier badge (Debug build)</string>
+    <string name="pro_unlocked_badge">All features active</string>
+    <string name="pro_play_standard_badge">Managed via Google Play Billing</string>
+    <string name="cd_edit">Edit</string>
+    <string name="cd_delete">Delete</string>
+
+    <!-- Widget -->
+    <string name="widget_description">OBD2 telemetry, battery voltage &amp; odometer widget</string>
+
+    <!-- Mode 07 Pending DTCs & Mode 06 On-Board Monitoring -->
+    <string name="dtc_pending_codes">Pending Trouble Codes Mode 07 (%1$d)</string>
+    <string name="dtc_mode06_title">On-Board Monitoring (Mode 06)</string>
+    <string name="dtc_mode06_pass">PASS</string>
+    <string name="dtc_mode06_fail">FAIL</string>
+
+    <!-- Datalogger & Multi-Channel Chart -->
+    <string name="datalogger_title">Datalogger &amp; Multi-Channel Plot</string>
+    <string name="datalogger_desc">Synchronized multi-channel recording with interactive crosshair chart &amp; CSV export.</string>
+    <string name="datalogger_rec_start">Start Rec</string>
+    <string name="datalogger_rec_stop">Stop</string>
+    <string name="datalogger_export_csv">CSV</string>
+    <string name="datalogger_status">Frames: %1$d • %2$s</string>
+    <string name="datalogger_recording_on">Recording…</string>
+    <string name="datalogger_recording_off">Idle</string>
+    <string name="datalogger_empty">Tap Start Rec while telemetry is active to plot synchronized multi-channel graphs.</string>
+    <string name="datalogger_channels_hint">Channels (up to 4):</string>
+    <string name="datalogger_scrub_time">t = %1$s s</string>
+
+    <!-- OEM Brand PID Catalog -->
+    <string name="oem_catalog_title">OEM Brand PID Catalog</string>
+    <string name="oem_catalog_desc">1-tap pre-configured extended PID packs (ATF, HV Battery, DPF, Boost).</string>
+    <string name="oem_pack_import_btn">Import (%1$d)</string>
+    <string name="oem_pack_imported">Imported from pack: %1$d PIDs</string>
+    <string name="oem_pack_already">All PIDs from this pack are already added</string>
+
+    <!-- USB OTG Serial -->
+    <string name="usb_card_title">USB OTG Adapter (ELM327)</string>
+    <string name="usb_card_desc">Direct wired OBD2 cable link (FTDI, CH340, CP2102, PL2303, ELS27) without Bluetooth drops.</string>
+    <string name="usb_none">No USB serial adapter detected. Plug in OTG cable and tap refresh.</string>
+    <string name="usb_grant_btn">Allow USB</string>
+
+    <!-- Trip Automation, Calibration & GPS -->
+    <string name="trip_auto_save_title">Auto-save trip on disconnect</string>
+    <string name="trip_auto_save_sub">Save qualifying trips (≥ 0.2 km or ≥ 60 s) and update odometer</string>
+    <string name="cal_card_title">Fuel, Speed Calibration &amp; GPS</string>
+    <string name="cal_fuel_factor">Fuel factor: %1$s</string>
+    <string name="cal_speed_factor">Speed factor: %1$s</string>
+    <string name="cal_fillup_btn">Fill-up Calc</string>
+    <string name="cal_fillup_title">Fuel Fill-up Calibration</string>
+    <string name="cal_actual_liters">Pump liters</string>
+    <string name="cal_computer_liters">Trip/ECU liters</string>
+    <string name="cal_gps_btn_start">GPS Speed Check</string>
+    <string name="cal_gps_btn_stop">Stop GPS</string>
+    <string name="cal_gps_apply_btn">Apply (%1$s)</string>
+    <string name="cal_gps_live">GPS: %1$s km/h • OBD: %2$s km/h (±%3$d m)</string>
+    <string name="cal_gps_waiting">Acquiring GPS satellites…</string>
+
+    <!-- Garage Odometer & Maintenance Tracker -->
+    <string name="garage_odometer_label">Odometer (km)</string>
+    <string name="maint_card_title">Maintenance Tracker</string>
+    <string name="maint_vehicle_stats">Odometer: %1$s km • Engine hrs: %2$s h</string>
+    <string name="maint_add_btn">Add Item</string>
+    <string name="maint_done_btn">Done</string>
+    <string name="maint_remaining_km">%1$d km left</string>
+    <string name="maint_overdue_km">Overdue by %1$d km</string>
+    <string name="maint_dialog_title">New Maintenance Item</string>
+    <string name="maint_item_title_label">Title (e.g. Engine Oil)</string>
+    <string name="maint_interval_km_label">Interval (km)</string>
+    <string name="maint_interval_hours_label">Interval (engine hrs, opt.)</string>
+    <string name="maint_notes_label">Notes / oil spec / part #</string>
+
+    <!-- Voice AI Assistant -->
+    <string name="voice_ai_btn">Voice AI</string>
+    <string name="voice_ai_title">Voice AI Mechanic</string>
+    <string name="voice_ai_desc">Ask by voice or text — AI answers using live sensors, DTCs &amp; maintenance.</string>
+    <string name="voice_ai_mic_btn">Speak</string>
+    <string name="voice_ai_input_hint">e.g. Why is Check Engine on or is 105°C oil normal?</string>
+    <string name="voice_ai_send_btn">Ask</string>
+    <string name="voice_ai_thinking">Analyzing ECU state…</string>
+    <string name="voice_ai_speak_toggle">Speak reply (TTS)</string>
+    <string name="voice_ai_no_mic">Speech recognizer unavailable on this device — type your question below.</string>
+
+    <!-- Cloud Sync & Google Sign-In -->
+    <string name="cloud_card_title">Cloud Sync (Firebase)</string>
+    <string name="cloud_card_desc">Sync vehicles, maintenance, custom PIDs &amp; trips across devices with Google Sign-In.</string>
+    <string name="cloud_signin_btn">Sign in with Google</string>
+    <string name="cloud_sync_btn">Sync Now</string>
+    <string name="cloud_signout_btn">Sign Out</string>
+    <string name="cloud_syncing">Syncing with cloud…</string>
+    <string name="cloud_signing_in">Signing in with Google…</string>
+    <string name="cloud_synced_ok">Synced %1$d records (%2$s)</string>
+
+    <!-- Play Billing -->
+    <string name="pro_buy_btn">Select</string>
+    <string name="pro_entitled_badge">Google Play: Active License</string>
+    <string name="pro_play_ready_note">Connected to Google Play Billing</string>
+
+    <!-- Pre-Purchase Inspection + PDF -->
+    <string name="inspect_card_title">Pre-Purchase Vehicle Check</string>
+    <string name="inspect_card_desc">Reset tamper detection (0131, 0130, 014E, 0121), I/M readiness, Mode 06 &amp; AI buyer verdict + PDF report.</string>
+    <string name="inspect_run_btn">Run Inspection</string>
+    <string name="inspect_running">Inspecting ECU modules…</string>
+    <string name="inspect_export_pdf_btn">Export PDF</string>
+    <string name="inspect_risk_high">HIGH RISK: DTCs appear recently cleared!</string>
+    <string name="inspect_risk_caution">CAUTION: Incomplete monitors or warnings found</string>
+    <string name="inspect_risk_none">CLEAN: Monitors complete, no reset tampering detected</string>
+    <string name="inspect_metric_dist_clear">Distance since clear (0131)</string>
+    <string name="inspect_metric_warmups">Warmups since clear (0130)</string>
+    <string name="inspect_metric_time_clear">Run time since clear (014E)</string>
+    <string name="inspect_metric_mil_dist">Distance with MIL ON (0121)</string>
+    <string name="inspect_ai_verdict_title">AI Inspector Verdict</string>
+
+    <!-- Battery & Alternator Health Test -->
+    <string name="batt_test_btn">Battery / Alternator Test</string>
+    <string name="batt_test_title">Battery, Cranking &amp; Alternator Test</string>
+    <string name="batt_phase_resting">Step 1/4: Resting voltage (ignition ON, engine OFF)…</string>
+    <string name="batt_phase_crank">Step 2/4: START ENGINE NOW — measuring cranking dip…</string>
+    <string name="batt_phase_idle">Step 3/4: Idle charging voltage…</string>
+    <string name="batt_phase_load">Step 4/4: Turn ON headlights &amp; AC — loaded charging test…</string>
+    <string name="batt_phase_done">Battery &amp; Alternator Test Complete</string>
+    <string name="batt_start_btn">Start Test</string>
+    <string name="batt_resting_label">Resting</string>
+    <string name="batt_crank_label">Crank Dip</string>
+    <string name="batt_idle_label">Idle Charge</string>
+    <string name="batt_load_label">Load Charge</string>
+
+    <!-- Fast/Slow Polling & BT Auto-Connect -->
+    <string name="settings_fast_slow_polling">Priority Polling (Fast/Slow PID)</string>
+    <string name="settings_fast_slow_polling_desc">Poll RPM, speed &amp; boost every cycle; poll thermal &amp; fuel sensors every 5 cycles for higher Hz.</string>
+    <string name="settings_bt_car_autoconnect">Auto-Connect via Car Bluetooth</string>
+    <string name="settings_bt_car_autoconnect_desc">Automatically connect to ELM327 when phone links with car head unit Bluetooth.</string>
+
+    <!-- Android Auto Enhancements -->
+    <string name="car_ai_summary_title">Voice AI Car Summary</string>
+    <string name="car_ai_summary_sub">Speak live status, faults &amp; service alerts</string>
+    <string name="car_preset_switch_title">Cockpit Preset: %1$s</string>
+    <string name="car_preset_switch_sub">Tap to cycle dashboard layout</string>
+    <string name="car_maint_overdue_title">Maintenance Alert: %1$s</string>
+    <string name="car_maint_due_sub">Overdue by %1$d km • check on phone</string>
+    <string name="car_maint_soon_sub">%1$d km left before service</string>
+    <string name="car_vehicle_row_title">Vehicle: %1$s</string>
+
+    <!-- Multimodal Vision & VIN AI Fill -->
+    <string name="vision_dash_light_btn">Scan Warning Light (AI)</string>
+    <string name="vision_dash_light_title">AI Warning Symbol Analysis</string>
+    <string name="vision_fuel_receipt_btn">Fuel Receipt (AI)</string>
+    <string name="vision_service_invoice_btn">Service Invoice (AI)</string>
+    <string name="vision_analyzing">AI is analyzing photo…</string>
+    <string name="vision_apply_receipt_btn">Apply Fuel Price (%1$.2f/L)</string>
+    <string name="vision_apply_invoice_btn">Save to Maintenance Log</string>
+    <string name="garage_curb_weight_label">Curb Weight (kg, for Virtual Dyno)</string>
+    <string name="garage_ai_autofill_btn">AI Auto-Fill by VIN / Model</string>
+    <string name="garage_ai_loading">AI is looking up specs &amp; service schedule…</string>
+    <string name="garage_ai_apply_btn">Apply Specs + Service + OEM PIDs</string>
+
+    <!-- Virtual Dyno, Curves & Eco Score -->
+    <string name="dyno_card_title">Virtual Dyno &amp; Eco Care Score</string>
+    <string name="dyno_power_label">Horsepower</string>
+    <string name="dyno_torque_label">Torque</string>
+    <string name="dyno_peak_hp">Peak: %1$d hp / %2$d N·m</string>
+    <string name="eco_score_label">Care Score: %1$d/100</string>
+    <string name="eco_details_fmt">Harsh events: %1$d • Cold revving: %2$d s</string>
+    <string name="accel_curve_title">Acceleration Curve (%1$s)</string>
+
+    <!-- ELM327 Interactive Terminal -->
+    <string name="terminal_btn">ELM327 Terminal</string>
+    <string name="terminal_title">ELM327 AT / OBD2 Terminal</string>
+    <string name="terminal_input_hint">Command (e.g. ATZ, ATI, ATRV, 0100, 03)</string>
+    <string name="terminal_send_btn">Send</string>
+    <string name="terminal_clear_btn">Clear</string>
 </resources>

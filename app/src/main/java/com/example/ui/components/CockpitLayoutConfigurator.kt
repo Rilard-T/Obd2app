@@ -35,7 +35,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -54,6 +58,7 @@ import com.example.R
 import com.example.obd.data.AndroidAutoDisplayMode
 import com.example.obd.i18n.l10nContext
 import com.example.obd.i18n.l10nStr
+import com.example.obd.model.CockpitDialTheme
 import com.example.obd.model.ObdPid
 import com.example.obd.model.PressureUnit
 import com.example.obd.model.SensorCategory
@@ -82,6 +87,9 @@ fun CockpitLayoutConfiguratorSection(
     onSetDialSlot: (Int, String) -> Unit,
     onSetStripSlot: (Int, String) -> Unit,
     onResetFullscreenDefaults: () -> Unit,
+    onSelectDialTheme: (CockpitDialTheme) -> Unit,
+    onSetShiftLightEnabled: (Boolean) -> Unit,
+    onSetShiftLightRpm: (Int) -> Unit,
     onToggleGridSensor: (String) -> Unit,
     onOpenPreview: () -> Unit
 ) {
@@ -194,35 +202,38 @@ fun CockpitLayoutConfiguratorSection(
             }
         }
 
-        // Mode Switcher
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            val isFullscreen = uiState.settings.androidAutoDisplayMode == AndroidAutoDisplayMode.FULLSCREEN_COCKPIT
-            ModeOptionButton(
-                title = l10nStr(R.string.cockpit_mode_fullscreen),
-                subtitle = l10nStr(R.string.cockpit_mode_fullscreen_sub),
-                icon = Icons.Filled.Fullscreen,
-                selected = isFullscreen,
-                onClick = { onSelectDisplayMode(AndroidAutoDisplayMode.FULLSCREEN_COCKPIT) },
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("aa_mode_fullscreen_button")
-            )
-            ModeOptionButton(
-                title = l10nStr(R.string.cockpit_mode_grid),
-                subtitle = l10nStr(R.string.cockpit_mode_grid_sub),
-                icon = Icons.Filled.GridView,
-                selected = !isFullscreen,
-                onClick = { onSelectDisplayMode(AndroidAutoDisplayMode.STANDARD_GRID) },
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("aa_mode_grid_button")
-            )
+        val allowFullscreenSurface = com.example.BuildConfig.ALLOW_AA_NAVIGATION_SURFACE
+        if (allowFullscreenSurface) {
+            // Mode Switcher (available in GitHub Direct Edition)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val isFullscreen = uiState.settings.effectiveAndroidAutoDisplayMode == AndroidAutoDisplayMode.FULLSCREEN_COCKPIT
+                ModeOptionButton(
+                    title = l10nStr(R.string.cockpit_mode_fullscreen),
+                    subtitle = l10nStr(R.string.cockpit_mode_fullscreen_sub),
+                    icon = Icons.Filled.Fullscreen,
+                    selected = isFullscreen,
+                    onClick = { onSelectDisplayMode(AndroidAutoDisplayMode.FULLSCREEN_COCKPIT) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("aa_mode_fullscreen_button")
+                )
+                ModeOptionButton(
+                    title = l10nStr(R.string.cockpit_mode_grid),
+                    subtitle = l10nStr(R.string.cockpit_mode_grid_sub),
+                    icon = Icons.Filled.GridView,
+                    selected = !isFullscreen,
+                    onClick = { onSelectDisplayMode(AndroidAutoDisplayMode.STANDARD_GRID) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("aa_mode_grid_button")
+                )
+            }
         }
 
-        if (uiState.settings.androidAutoDisplayMode == AndroidAutoDisplayMode.FULLSCREEN_COCKPIT) {
+        if (allowFullscreenSurface && uiState.settings.effectiveAndroidAutoDisplayMode == AndroidAutoDisplayMode.FULLSCREEN_COCKPIT) {
             val l10nCtx = l10nContext()
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -399,6 +410,65 @@ fun CockpitLayoutConfiguratorSection(
                         }
                     }
 
+                    Text(
+                        text = l10nStr(R.string.cockpit_theme_label),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = TextSecondary
+                    )
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(CockpitDialTheme.entries, key = { it.name }) { theme ->
+                            FilterChip(
+                                selected = uiState.settings.dialTheme == theme,
+                                onClick = { onSelectDialTheme(theme) },
+                                label = { Text(theme.localizedLabel(isEng)) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = TelemetryCyan.copy(alpha = 0.22f),
+                                    selectedLabelColor = TelemetryCyan
+                                ),
+                                modifier = Modifier.testTag("dial_theme_${theme.name}")
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = l10nStr(R.string.cockpit_shift_title),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = l10nStr(R.string.cockpit_shift_rpm, uiState.settings.shiftLightRpm),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TelemetryCyan
+                            )
+                        }
+                        Switch(
+                            checked = uiState.settings.shiftLightEnabled,
+                            onCheckedChange = onSetShiftLightEnabled,
+                            colors = SwitchDefaults.colors(checkedTrackColor = TelemetryCyan),
+                            modifier = Modifier.testTag("shift_light_switch")
+                        )
+                    }
+
+                    if (uiState.settings.shiftLightEnabled) {
+                        Slider(
+                            value = uiState.settings.shiftLightRpm.toFloat(),
+                            onValueChange = { onSetShiftLightRpm(((it / 100f).toInt() * 100).coerceIn(3000, 9000)) },
+                            valueRange = 3000f..8500f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = TelemetryCyan,
+                                activeTrackColor = TelemetryCyan,
+                                inactiveTrackColor = CockpitBorder
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
                     OutlinedButton(
                         onClick = onOpenPreview,
                         modifier = Modifier
@@ -449,6 +519,15 @@ fun CockpitLayoutConfiguratorSection(
                             Spacer(modifier = Modifier.weight(1f))
                         }
                     }
+                }
+                OutlinedButton(
+                    onClick = onOpenPreview,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("open_cockpit_preview_from_config_button"),
+                    border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.6f))
+                ) {
+                    Text(l10nStr(R.string.cockpit_open_preview_btn), color = TelemetryCyan)
                 }
             }
         }

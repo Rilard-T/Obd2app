@@ -191,6 +191,9 @@ class CockpitSurfaceController(
         val surface = sc?.surface ?: return false
         if (!surface.isValid) return false
 
+        val rpmValue = readings[ObdPid.ENGINE_RPM.modeAndPid]?.value ?: 0f
+        val shiftActive = settings.shiftLightEnabled && rpmValue >= settings.shiftLightRpm
+
         val frame = CockpitRenderFrame(
             dialSensors = dialSensors,
             stripSensors = stripSensors,
@@ -199,7 +202,9 @@ class CockpitSurfaceController(
             connectionState = connState,
             useFahrenheit = settings.useFahrenheit,
             pressureUnit = settings.pressureUnit,
-            isEnglish = settings.isEnglish
+            isEnglish = settings.isEnglish,
+            dialTheme = settings.dialTheme,
+            shiftLightActive = shiftActive
         )
 
         var canvas: Canvas? = null

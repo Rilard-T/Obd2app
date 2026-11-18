@@ -9,6 +9,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
 import com.example.obd.model.AlertLevel
+import com.example.obd.model.CockpitDialTheme
 import com.example.obd.model.ObdConnectionState
 import com.example.obd.model.PressureUnit
 import com.example.obd.model.SensorReading
@@ -26,7 +27,28 @@ data class CockpitRenderFrame(
     val connectionState: ObdConnectionState,
     val useFahrenheit: Boolean,
     val pressureUnit: PressureUnit,
-    val isEnglish: Boolean = false
+    val isEnglish: Boolean = false,
+    val dialTheme: CockpitDialTheme = CockpitDialTheme.SPORT_CARBON,
+    val shiftLightActive: Boolean = false
+)
+
+private data class DialThemePalette(
+    val background: Int,
+    val faceInner: Int,
+    val faceMid: Int,
+    val faceOuter: Int,
+    val outerRing: Int,
+    val majorTick: Int,
+    val minorTick: Int,
+    val labelText: Int,
+    val needleNormal: Int,
+    val valueNormal: Int,
+    val unitText: Int,
+    val titleText: Int,
+    val stripLabel: Int,
+    val badgeText: Int,
+    val warningAccent: Int,
+    val shiftGlow: Int
 )
 
 object AnalogCockpitRenderer {
@@ -34,95 +56,131 @@ object AnalogCockpitRenderer {
     private const val START_ANGLE_DEG = 135f
     private const val SWEEP_ANGLE_DEG = 270f
 
-    private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#04060A")
-        style = Paint.Style.FILL
+    private val sportCarbonPalette = DialThemePalette(
+        background = Color.parseColor("#04060A"),
+        faceInner = Color.parseColor("#111722"),
+        faceMid = Color.parseColor("#080B10"),
+        faceOuter = Color.parseColor("#04060A"),
+        outerRing = Color.parseColor("#DCE3EC"),
+        majorTick = Color.parseColor("#F1F5F9"),
+        minorTick = Color.parseColor("#B0BAC9"),
+        labelText = Color.parseColor("#E5EBF3"),
+        needleNormal = Color.WHITE,
+        valueNormal = Color.WHITE,
+        unitText = Color.parseColor("#CBD5E1"),
+        titleText = Color.parseColor("#E2E8F0"),
+        stripLabel = Color.parseColor("#94A3B8"),
+        badgeText = Color.parseColor("#8899AC"),
+        warningAccent = Color.parseColor("#D96B27"),
+        shiftGlow = Color.parseColor("#FF2E43")
+    )
+
+    private val trackRedPalette = DialThemePalette(
+        background = Color.parseColor("#090406"),
+        faceInner = Color.parseColor("#1E0C10"),
+        faceMid = Color.parseColor("#0F0608"),
+        faceOuter = Color.parseColor("#080305"),
+        outerRing = Color.parseColor("#EF4444"),
+        majorTick = Color.parseColor("#FEE2E2"),
+        minorTick = Color.parseColor("#A16267"),
+        labelText = Color.parseColor("#FECACA"),
+        needleNormal = Color.parseColor("#FF3B30"),
+        valueNormal = Color.WHITE,
+        unitText = Color.parseColor("#FCA5A5"),
+        titleText = Color.parseColor("#FECACA"),
+        stripLabel = Color.parseColor("#B8898E"),
+        badgeText = Color.parseColor("#FCA5A5"),
+        warningAccent = Color.parseColor("#FF2D20"),
+        shiftGlow = Color.parseColor("#FF3B30")
+    )
+
+    private val neonCyanPalette = DialThemePalette(
+        background = Color.parseColor("#020810"),
+        faceInner = Color.parseColor("#081C2E"),
+        faceMid = Color.parseColor("#04101C"),
+        faceOuter = Color.parseColor("#020810"),
+        outerRing = Color.parseColor("#00E5FF"),
+        majorTick = Color.parseColor("#7CEFFF"),
+        minorTick = Color.parseColor("#387A96"),
+        labelText = Color.parseColor("#BAE6FD"),
+        needleNormal = Color.parseColor("#00E5FF"),
+        valueNormal = Color.parseColor("#E0F7FA"),
+        unitText = Color.parseColor("#7DD3FC"),
+        titleText = Color.parseColor("#67E8F9"),
+        stripLabel = Color.parseColor("#7CA8BF"),
+        badgeText = Color.parseColor("#7DD3FC"),
+        warningAccent = Color.parseColor("#F59E0B"),
+        shiftGlow = Color.parseColor("#00E5FF")
+    )
+
+    private val daylightPalette = DialThemePalette(
+        background = Color.parseColor("#E9EEF5"),
+        faceInner = Color.parseColor("#FFFFFF"),
+        faceMid = Color.parseColor("#F3F6FA"),
+        faceOuter = Color.parseColor("#E2E8F0"),
+        outerRing = Color.parseColor("#1E293B"),
+        majorTick = Color.parseColor("#0F172A"),
+        minorTick = Color.parseColor("#64748B"),
+        labelText = Color.parseColor("#0F172A"),
+        needleNormal = Color.parseColor("#D92B2B"),
+        valueNormal = Color.parseColor("#0F172A"),
+        unitText = Color.parseColor("#475569"),
+        titleText = Color.parseColor("#1E293B"),
+        stripLabel = Color.parseColor("#475569"),
+        badgeText = Color.parseColor("#334155"),
+        warningAccent = Color.parseColor("#DC2626"),
+        shiftGlow = Color.parseColor("#DC2626")
+    )
+
+    private fun paletteFor(theme: CockpitDialTheme): DialThemePalette = when (theme) {
+        CockpitDialTheme.SPORT_CARBON -> sportCarbonPalette
+        CockpitDialTheme.TRACK_RED -> trackRedPalette
+        CockpitDialTheme.NEON_CYAN -> neonCyanPalette
+        CockpitDialTheme.DAYLIGHT_HIGH_CONTRAST -> daylightPalette
     }
 
-    private val dialFacePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
-    }
-
-    private val outerRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#DCE3EC")
-        style = Paint.Style.STROKE
-    }
-
+    private val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val dialFacePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val outerRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val warningArcPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#D96B27")
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.BUTT
     }
-
-    private val majorTickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#F1F5F9")
-        strokeCap = Paint.Cap.ROUND
-    }
-
-    private val minorTickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#B0BAC9")
-        strokeCap = Paint.Cap.ROUND
-    }
-
-    private val warningTickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#E8742E")
-        strokeCap = Paint.Cap.ROUND
-    }
-
+    private val majorTickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND }
+    private val minorTickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND }
+    private val warningTickPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND }
     private val scaleLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#E5EBF3")
         textAlign = Paint.Align.CENTER
         typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
     }
-
-    private val needlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
-    }
-
+    private val needlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private val valueTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
         textAlign = Paint.Align.CENTER
         typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
     }
-
     private val unitTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#CBD5E1")
         textAlign = Paint.Align.CENTER
         typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
     }
-
-    private val titleMaskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#04060A")
-        style = Paint.Style.FILL
-    }
-
+    private val titleMaskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
     private val titleTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#E2E8F0")
         textAlign = Paint.Align.CENTER
         typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
     }
-
     private val stripLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#94A3B8")
         textAlign = Paint.Align.CENTER
         typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
     }
-
     private val stripValuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
         textAlign = Paint.Align.CENTER
         typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
     }
-
     private val statusBadgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#8899AC")
         textAlign = Paint.Align.LEFT
         typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
     }
-
-    private val statusDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        style = Paint.Style.FILL
-    }
+    private val statusDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+    private val shiftBarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
 
     fun render(
         canvas: Canvas,
@@ -131,6 +189,19 @@ object AnalogCockpitRenderer {
         visibleArea: RectF? = null,
         frame: CockpitRenderFrame
     ) {
+        val palette = paletteFor(frame.dialTheme)
+        bgPaint.color = palette.background
+        outerRingPaint.color = palette.outerRing
+        warningArcPaint.color = palette.warningAccent
+        majorTickPaint.color = palette.majorTick
+        minorTickPaint.color = palette.minorTick
+        warningTickPaint.color = palette.warningAccent
+        unitTextPaint.color = palette.unitText
+        titleMaskPaint.color = palette.background
+        titleTextPaint.color = palette.titleText
+        stripLabelPaint.color = palette.stripLabel
+        statusBadgePaint.color = palette.badgeText
+
         canvas.drawRect(0f, 0f, width, height, bgPaint)
 
         val safeRect = visibleArea ?: RectF(0f, 0f, width, height)
@@ -145,12 +216,22 @@ object AnalogCockpitRenderer {
         val contentRight = safeRect.right - padX
         val contentW = (contentRight - contentLeft).coerceAtLeast(80f)
 
+        if (frame.shiftLightActive) {
+            drawShiftLightStrip(
+                canvas = canvas,
+                left = safeRect.left + areaW * 0.22f,
+                right = safeRect.right - areaW * 0.22f,
+                top = safeRect.top + padTop * 0.28f,
+                height = (areaH * 0.028f).coerceIn(4f, 12f),
+                color = palette.shiftGlow
+            )
+        }
+
         val stripHeight = (areaH * 0.19f).coerceIn(28f, areaH * 0.25f)
         val dialAreaTop = safeRect.top + padTop
         val dialAreaBottom = (safeRect.bottom - padBottom - stripHeight).coerceAtLeast(dialAreaTop + 60f)
         val dialAreaH = dialAreaBottom - dialAreaTop
 
-        // Subtle status pill on top-left only when simulating or disconnected
         drawTopLeftConnectionIndicator(
             canvas = canvas,
             left = safeRect.left + padX * 0.65f,
@@ -160,7 +241,6 @@ object AnalogCockpitRenderer {
             isEnglish = frame.isEnglish
         )
 
-        // 3 Primary Analog Dials
         val dialCount = frame.dialSensors.size.coerceIn(1, 3)
         val slotWidth = contentW / dialCount.toFloat()
         val dialDiameter = min(slotWidth * 0.87f, dialAreaH * 0.92f).coerceAtLeast(36f)
@@ -184,11 +264,11 @@ object AnalogCockpitRenderer {
                 cx = cx,
                 cy = dialCenterY,
                 radius = dialRadius,
-                spec = spec.copy(needleFraction = needleFraction)
+                spec = spec.copy(needleFraction = needleFraction),
+                palette = palette
             )
         }
 
-        // Bottom 4-slot telemetry strip
         val stripSensors = frame.stripSensors.take(4)
         if (stripSensors.isNotEmpty()) {
             val stripCount = stripSensors.size
@@ -223,13 +303,41 @@ object AnalogCockpitRenderer {
                     isEnglish = frame.isEnglish
                 )
                 stripValuePaint.color = when (reading?.alertLevel) {
-                    AlertLevel.CRITICAL -> Color.parseColor("#FF5C5C")
-                    AlertLevel.WARNING -> Color.parseColor("#FFB020")
-                    else -> Color.WHITE
+                    AlertLevel.CRITICAL -> Color.parseColor("#FF4444")
+                    AlertLevel.WARNING -> Color.parseColor("#D97706")
+                    else -> palette.valueNormal
                 }
                 val fittedVal = ellipsizeForWidth(valueStr, stripValuePaint, stripSlotW * 0.90f)
                 canvas.drawText(fittedVal, sx, valueY, stripValuePaint)
             }
+        }
+    }
+
+    private fun drawShiftLightStrip(
+        canvas: Canvas,
+        left: Float,
+        right: Float,
+        top: Float,
+        height: Float,
+        color: Int
+    ) {
+        val segments = 8
+        val totalW = (right - left).coerceAtLeast(40f)
+        val gap = totalW * 0.02f
+        val segW = (totalW - gap * (segments - 1)) / segments
+        for (i in 0 until segments) {
+            shiftBarPaint.color = when {
+                i < 3 -> Color.parseColor("#22C55E")
+                i < 6 -> Color.parseColor("#F59E0B")
+                else -> color
+            }
+            val x0 = left + i * (segW + gap)
+            canvas.drawRoundRect(
+                RectF(x0, top, x0 + segW, top + height),
+                height * 0.5f,
+                height * 0.5f,
+                shiftBarPaint
+            )
         }
     }
 
@@ -238,44 +346,32 @@ object AnalogCockpitRenderer {
         cx: Float,
         cy: Float,
         radius: Float,
-        spec: AnalogDialSpec
+        spec: AnalogDialSpec,
+        palette: DialThemePalette
     ) {
-        // Subtle radial face vignette
         dialFacePaint.shader = RadialGradient(
             cx,
             cy,
             radius,
-            intArrayOf(
-                Color.parseColor("#111722"),
-                Color.parseColor("#080B10"),
-                Color.parseColor("#04060A")
-            ),
+            intArrayOf(palette.faceInner, palette.faceMid, palette.faceOuter),
             floatArrayOf(0f, 0.72f, 1f),
             Shader.TileMode.CLAMP
         )
         canvas.drawCircle(cx, cy, radius * 0.985f, dialFacePaint)
 
-        // Outer crisp circular border ring
         outerRingPaint.strokeWidth = (radius * 0.022f).coerceAtLeast(1.5f)
         canvas.drawCircle(cx, cy, radius * 0.96f, outerRingPaint)
 
-        // Warning / Redline accent arc along the high end of the scale
         val warnStart = spec.warningStartFraction
         if (warnStart != null && warnStart < 0.99f) {
             val arcRadius = radius * 0.895f
-            val arcRect = RectF(
-                cx - arcRadius,
-                cy - arcRadius,
-                cx + arcRadius,
-                cy + arcRadius
-            )
+            val arcRect = RectF(cx - arcRadius, cy - arcRadius, cx + arcRadius, cy + arcRadius)
             warningArcPaint.strokeWidth = (radius * 0.048f).coerceAtLeast(2.5f)
             val warnAngle = START_ANGLE_DEG + SWEEP_ANGLE_DEG * warnStart
             val warnSweep = SWEEP_ANGLE_DEG * (1f - warnStart)
             canvas.drawArc(arcRect, warnAngle, warnSweep, false, warningArcPaint)
         }
 
-        // Radial Ticks + Numbers
         val tickOuter = radius * 0.92f
         val majorInner = radius * 0.80f
         val minorInner = radius * 0.855f
@@ -312,16 +408,11 @@ object AnalogCockpitRenderer {
             if (tick.isMajor && tick.label != null) {
                 val lx = cx + labelRadius * cosA
                 val ly = cy + labelRadius * sinA - labelVerticalOffset
-                scaleLabelPaint.color = if (inWarningZone) {
-                    Color.parseColor("#FF8A4C")
-                } else {
-                    Color.parseColor("#E5EBF3")
-                }
+                scaleLabelPaint.color = if (inWarningZone) palette.warningAccent else palette.labelText
                 canvas.drawText(tick.label, lx, ly, scaleLabelPaint)
             }
         }
 
-        // Tapered Pointer Needle (starts outside center numeric readout to preserve readability!)
         val needleAngleDeg = START_ANGLE_DEG + SWEEP_ANGLE_DEG * spec.needleFraction.coerceIn(0f, 1f)
         val needleRad = needleAngleDeg.toDouble() * PI / 180.0
         val nCos = cos(needleRad).toFloat()
@@ -335,32 +426,19 @@ object AnalogCockpitRenderer {
         val halfTipW = (radius * 0.008f).coerceAtLeast(0.7f)
 
         val needlePath = Path().apply {
-            moveTo(
-                cx + needleInnerR * nCos + halfBaseW * perpCos,
-                cy + needleInnerR * nSin + halfBaseW * perpSin
-            )
-            lineTo(
-                cx + needleOuterR * nCos + halfTipW * perpCos,
-                cy + needleOuterR * nSin + halfTipW * perpSin
-            )
-            lineTo(
-                cx + needleOuterR * nCos - halfTipW * perpCos,
-                cy + needleOuterR * nSin - halfTipW * perpSin
-            )
-            lineTo(
-                cx + needleInnerR * nCos - halfBaseW * perpCos,
-                cy + needleInnerR * nSin - halfBaseW * perpSin
-            )
+            moveTo(cx + needleInnerR * nCos + halfBaseW * perpCos, cy + needleInnerR * nSin + halfBaseW * perpSin)
+            lineTo(cx + needleOuterR * nCos + halfTipW * perpCos, cy + needleOuterR * nSin + halfTipW * perpSin)
+            lineTo(cx + needleOuterR * nCos - halfTipW * perpCos, cy + needleOuterR * nSin - halfTipW * perpSin)
+            lineTo(cx + needleInnerR * nCos - halfBaseW * perpCos, cy + needleInnerR * nSin - halfBaseW * perpSin)
             close()
         }
         needlePaint.color = when (spec.alertLevel) {
             AlertLevel.CRITICAL -> Color.parseColor("#FF4D4D")
-            AlertLevel.WARNING -> Color.parseColor("#FFB020")
-            AlertLevel.NORMAL -> Color.WHITE
+            AlertLevel.WARNING -> Color.parseColor("#F59E0B")
+            AlertLevel.NORMAL -> palette.needleNormal
         }
         canvas.drawPath(needlePath, needlePaint)
 
-        // Center Digital Value Readout
         val valLen = spec.centerValueText.length
         valueTextPaint.textSize = when {
             valLen >= 5 -> radius * 0.25f
@@ -368,14 +446,13 @@ object AnalogCockpitRenderer {
             else -> radius * 0.36f
         }.coerceAtLeast(11f)
         valueTextPaint.color = when (spec.alertLevel) {
-            AlertLevel.CRITICAL -> Color.parseColor("#FF5C5C")
-            AlertLevel.WARNING -> Color.parseColor("#FFB020")
-            AlertLevel.NORMAL -> Color.WHITE
+            AlertLevel.CRITICAL -> Color.parseColor("#FF4444")
+            AlertLevel.WARNING -> Color.parseColor("#D97706")
+            AlertLevel.NORMAL -> palette.valueNormal
         }
         val valBaselineY = cy + valueTextPaint.textSize * 0.16f
         canvas.drawText(spec.centerValueText, cx, valBaselineY, valueTextPaint)
 
-        // Unit underneath center readout
         if (spec.unitText.isNotBlank()) {
             unitTextPaint.textSize = (radius * 0.145f).coerceAtLeast(8f)
             canvas.drawText(
@@ -386,7 +463,6 @@ object AnalogCockpitRenderer {
             )
         }
 
-        // Bottom Label integrated into the outer ring gap
         titleTextPaint.textSize = (radius * 0.145f).coerceAtLeast(8f)
         val titleText = ellipsizeForWidth(spec.title, titleTextPaint, radius * 1.05f)
         val measuredW = titleTextPaint.measureText(titleText)
@@ -394,13 +470,7 @@ object AnalogCockpitRenderer {
         val padH = radius * 0.08f
         val maskTop = labelCenterY - titleTextPaint.textSize * 0.95f
         val maskBottom = labelCenterY + titleTextPaint.textSize * 0.45f
-        canvas.drawRect(
-            cx - measuredW / 2f - padH,
-            maskTop,
-            cx + measuredW / 2f + padH,
-            maskBottom,
-            titleMaskPaint
-        )
+        canvas.drawRect(cx - measuredW / 2f - padH, maskTop, cx + measuredW / 2f + padH, maskBottom, titleMaskPaint)
         canvas.drawText(titleText, cx, labelCenterY, titleTextPaint)
     }
 
@@ -442,12 +512,7 @@ object AnalogCockpitRenderer {
         statusBadgePaint.textSize = textSize
         val cy = top + textSize * 0.55f
         canvas.drawCircle(left + dotRadius, cy, dotRadius, statusDotPaint)
-        canvas.drawText(
-            text,
-            left + dotRadius * 3.2f,
-            cy + textSize * 0.34f,
-            statusBadgePaint
-        )
+        canvas.drawText(text, left + dotRadius * 3.2f, cy + textSize * 0.34f, statusBadgePaint)
     }
 
     private fun ellipsizeForWidth(text: String, paint: Paint, maxWidth: Float): String {

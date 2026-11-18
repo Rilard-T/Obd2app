@@ -110,8 +110,8 @@ fun AndroidAutoPreviewDialog(
     var detailSensorId by remember { mutableStateOf<String?>(null) }
     var editingTarget by remember { mutableStateOf<CockpitSlotTarget?>(null) }
 
-    val isFullscreenMode =
-        uiState.settings.androidAutoDisplayMode == AndroidAutoDisplayMode.FULLSCREEN_COCKPIT
+    val isFullscreenMode = com.example.BuildConfig.ALLOW_AA_NAVIGATION_SURFACE &&
+        uiState.settings.effectiveAndroidAutoDisplayMode == AndroidAutoDisplayMode.FULLSCREEN_COCKPIT
 
     val activeTarget = editingTarget
     if (activeTarget != null) {
@@ -196,31 +196,33 @@ fun AndroidAutoPreviewDialog(
                     }
                 }
 
-                // Mode Switch inside Head Unit Preview
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChipButton(
-                        label = l10nStr(R.string.aa_preview_chip_full),
-                        icon = Icons.Filled.Fullscreen,
-                        selected = isFullscreenMode,
-                        onClick = { onSelectDisplayMode(AndroidAutoDisplayMode.FULLSCREEN_COCKPIT) },
+                if (com.example.BuildConfig.ALLOW_AA_NAVIGATION_SURFACE) {
+                    // Mode Switch inside Head Unit Preview (GitHub Edition only)
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .testTag("aa_preview_mode_fullscreen")
-                    )
-                    FilterChipButton(
-                        label = l10nStr(R.string.aa_preview_chip_grid),
-                        icon = Icons.Filled.GridView,
-                        selected = !isFullscreenMode,
-                        onClick = { onSelectDisplayMode(AndroidAutoDisplayMode.STANDARD_GRID) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("aa_preview_mode_grid")
-                    )
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChipButton(
+                            label = l10nStr(R.string.aa_preview_chip_full),
+                            icon = Icons.Filled.Fullscreen,
+                            selected = isFullscreenMode,
+                            onClick = { onSelectDisplayMode(AndroidAutoDisplayMode.FULLSCREEN_COCKPIT) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("aa_preview_mode_fullscreen")
+                        )
+                        FilterChipButton(
+                            label = l10nStr(R.string.aa_preview_chip_grid),
+                            icon = Icons.Filled.GridView,
+                            selected = !isFullscreenMode,
+                            onClick = { onSelectDisplayMode(AndroidAutoDisplayMode.STANDARD_GRID) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("aa_preview_mode_grid")
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -263,6 +265,8 @@ fun AndroidAutoPreviewDialog(
                                 }.toMap()
 
                                 Canvas(modifier = Modifier.fillMaxSize()) {
+                                    val rpmVal = uiState.readings[ObdPid.ENGINE_RPM.modeAndPid]?.value ?: 0f
+                                    val shiftActive = uiState.settings.shiftLightEnabled && rpmVal >= uiState.settings.shiftLightRpm
                                     val frame = CockpitRenderFrame(
                                         dialSensors = dialSensors,
                                         stripSensors = stripSensors,
@@ -271,7 +275,9 @@ fun AndroidAutoPreviewDialog(
                                         connectionState = uiState.connectionState,
                                         useFahrenheit = uiState.settings.useFahrenheit,
                                         pressureUnit = uiState.settings.pressureUnit,
-                                        isEnglish = isEng
+                                        isEnglish = isEng,
+                                        dialTheme = uiState.settings.dialTheme,
+                                        shiftLightActive = shiftActive
                                     )
                                     drawIntoCanvas { canvas ->
                                         AnalogCockpitRenderer.render(

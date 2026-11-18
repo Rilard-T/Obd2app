@@ -34,20 +34,32 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Science
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -60,6 +72,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Slider
@@ -84,15 +97,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.example.R
+import com.example.obd.model.CockpitDialTheme
+import com.example.obd.i18n.l10nContext
 import com.example.obd.i18n.l10nStr
 import com.example.obd.model.AppLanguage
 import com.example.obd.model.BluetoothDeviceItem
+import com.example.obd.model.CloudSyncStatus
 import com.example.obd.model.ObdConnectionState
 import com.example.obd.model.TtsVoiceOption
 import com.example.ui.ObdUiState
+import com.example.ui.components.BatteryTestDialog
+import com.example.ui.components.Elm327TerminalDialog
 import com.example.ui.theme.CarbonObsidian
 import com.example.ui.theme.CockpitBorder
 import com.example.ui.theme.CockpitSurface
@@ -103,6 +122,8 @@ import com.example.ui.theme.RedlineCrimson
 import com.example.ui.theme.TelemetryCyan
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextSecondary
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -117,17 +138,22 @@ fun ConnectionScreen(
     onStartBleScan: () -> Unit,
     onStopBleScan: () -> Unit,
     onConnectDevice: (BluetoothDeviceItem) -> Unit,
+    onConnectWifi: (String, Int) -> Unit,
     onStartSimulation: () -> Unit,
     onDisconnect: () -> Unit,
     onToggleShowAllBt: () -> Unit,
     onToggleAndroidAutoSensor: (String) -> Unit,
     onSelectDisplayMode: (com.example.obd.data.AndroidAutoDisplayMode) -> Unit,
+    onSelectDialTheme: (CockpitDialTheme) -> Unit,
+    onSetShiftLightEnabled: (Boolean) -> Unit,
+    onSetShiftLightRpm: (Int) -> Unit,
     onSelectPreset: (String) -> Unit,
     onRenamePreset: (String, String) -> Unit,
     onSetDialSlot: (Int, String) -> Unit,
     onSetStripSlot: (Int, String) -> Unit,
     onResetFullscreenDefaults: () -> Unit,
     onSetAutoConnect: (Boolean) -> Unit,
+    onSetAutoReconnect: (Boolean) -> Unit,
     onSetVoiceAlerts: (Boolean) -> Unit,
     onSetAaPopupAlerts: (Boolean) -> Unit,
     onSetTtsVolume: (Float) -> Unit,
@@ -137,15 +163,38 @@ fun ConnectionScreen(
     onTriggerTestAlert: () -> Unit,
     onRunAdapterBenchmark: () -> Unit,
     onOpenAndroidAutoPreview: () -> Unit,
+    onOpenGarage: () -> Unit,
+    onExportConfigBackupJson: () -> String,
+    onImportConfigBackupJson: (String, (Result<Int>) -> Unit) -> Unit,
+    onOpenSafetyDialog: () -> Unit,
+    onOpenProDialog: () -> Unit,
     onOpenErrorLogs: () -> Unit,
     onSetAppLanguage: (AppLanguage) -> Unit,
+    onRefreshUsbDevices: () -> Unit,
+    onRequestUsbPermission: (Int) -> Unit,
+    onConnectUsbDevice: (Int) -> Unit,
+    onSignInGoogle: (android.content.Context) -> Unit,
+    onSyncCloudNow: () -> Unit,
+    onSignOutCloud: () -> Unit,
+    onSetFastSlowPolling: (Boolean) -> Unit = {},
+    onSetAutoConnectBtCar: (Boolean) -> Unit = {},
+    onStartBatteryTest: () -> Unit = {},
+    onCancelBatteryTest: () -> Unit = {},
+    onSendTerminalCommand: (String) -> Unit = {},
+    onClearTerminal: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val l10nCtx = l10nContext()
     val lifecycleOwner = LocalLifecycleOwner.current
     val isEng = uiState.settings.isEnglish
     val numLocale = if (isEng) Locale.US else Locale.forLanguageTag("ru-RU")
     var showVoicePickerDialog by remember { mutableStateOf(false) }
+    var showBatteryTestDialog by remember { mutableStateOf(false) }
+    var showTerminalDialog by remember { mutableStateOf(false) }
+    var wifiHostInput by remember(uiState.settings.wifiHost) { mutableStateOf(uiState.settings.wifiHost) }
+    var wifiPortInput by remember(uiState.settings.wifiPort) { mutableStateOf(uiState.settings.wifiPort.toString()) }
+    var backupStatus by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(uiState.settings.voiceAlertsEnabled) {
         if (uiState.settings.voiceAlertsEnabled) {
@@ -175,6 +224,48 @@ fun ConnectionScreen(
         onRefreshDevices()
     }
 
+    val exportJsonLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            val result = runCatching {
+                val json = onExportConfigBackupJson()
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    out.write(json.toByteArray(Charsets.UTF_8))
+                }
+            }
+            backupStatus = result.fold(
+                onSuccess = { l10nCtx.getString(R.string.backup_export_ok) },
+                onFailure = { err -> l10nCtx.getString(R.string.backup_error, err.message ?: "I/O") }
+            )
+        }
+    }
+
+    val importJsonLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val rawResult = runCatching {
+                context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use {
+                    it.readText()
+                } ?: error("Empty file")
+            }
+            rawResult.fold(
+                onSuccess = { json ->
+                    onImportConfigBackupJson(json) { res ->
+                        backupStatus = res.fold(
+                            onSuccess = { count -> l10nCtx.getString(R.string.backup_import_ok, count) },
+                            onFailure = { err -> l10nCtx.getString(R.string.backup_error, err.message ?: "JSON") }
+                        )
+                    }
+                },
+                onFailure = { err ->
+                    backupStatus = l10nCtx.getString(R.string.backup_error, err.message ?: "I/O")
+                }
+            )
+        }
+    }
+
     val pairedVisible = if (uiState.showAllBtDevices) {
         uiState.pairedDevices
     } else {
@@ -197,6 +288,26 @@ fun ConnectionScreen(
             onRefreshVoices = onPreloadTtsVoices,
             onTestVoice = onTriggerTestAlert,
             onDismiss = { showVoicePickerDialog = false }
+        )
+    }
+
+    if (showBatteryTestDialog) {
+        BatteryTestDialog(
+            state = uiState.batteryTestState,
+            isEnglish = isEng,
+            isConnectionActive = uiState.connectionState.isActiveTelemetry,
+            onStartTest = onStartBatteryTest,
+            onCancelTest = onCancelBatteryTest,
+            onDismiss = { showBatteryTestDialog = false }
+        )
+    }
+
+    if (showTerminalDialog) {
+        Elm327TerminalDialog(
+            entries = uiState.terminalEntries,
+            onSendCommand = onSendTerminalCommand,
+            onClear = onClearTerminal,
+            onDismiss = { showTerminalDialog = false }
         )
     }
 
@@ -710,6 +821,94 @@ fun ConnectionScreen(
             }
         }
 
+        // Wi-Fi ELM327 TCP Adapter Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("wifi_obd_card"),
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(containerColor = CockpitSurface),
+                border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.35f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Wifi,
+                            contentDescription = null,
+                            tint = TelemetryCyan,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = l10nStr(R.string.wifi_card_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = l10nStr(R.string.wifi_card_desc),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = wifiHostInput,
+                            onValueChange = { wifiHostInput = it },
+                            label = { Text(l10nStr(R.string.wifi_host_label)) },
+                            singleLine = true,
+                            modifier = Modifier
+                                .weight(1.7f)
+                                .testTag("wifi_host_input")
+                        )
+                        OutlinedTextField(
+                            value = wifiPortInput,
+                            onValueChange = { txt ->
+                                wifiPortInput = txt.filter { it.isDigit() }.take(5)
+                            },
+                            label = { Text(l10nStr(R.string.wifi_port_label)) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("wifi_port_input")
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            val host = wifiHostInput.trim().ifEmpty { "192.168.0.10" }
+                            val port = wifiPortInput.toIntOrNull()?.takeIf { it in 1..65535 } ?: 35000
+                            onConnectWifi(host, port)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("wifi_connect_button"),
+                        colors = ButtonDefaults.buttonColors(containerColor = TelemetryCyan)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Wifi,
+                            contentDescription = null,
+                            tint = CarbonObsidian,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(l10nStr(R.string.wifi_connect_btn), color = CarbonObsidian)
+                    }
+                }
+            }
+        }
+
         // Android Auto Display Mode & Gauge Layout Configurator
         item {
             com.example.ui.components.CockpitLayoutConfiguratorSection(
@@ -720,12 +919,15 @@ fun ConnectionScreen(
                 onSetDialSlot = onSetDialSlot,
                 onSetStripSlot = onSetStripSlot,
                 onResetFullscreenDefaults = onResetFullscreenDefaults,
+                onSelectDialTheme = onSelectDialTheme,
+                onSetShiftLightEnabled = onSetShiftLightEnabled,
+                onSetShiftLightRpm = onSetShiftLightRpm,
                 onToggleGridSensor = onToggleAndroidAutoSensor,
                 onOpenPreview = onOpenAndroidAutoPreview
             )
         }
 
-        // Auto-connect, Voice (TTS), and Android Auto Popup Alerts Card
+        // Auto-connect, Auto-reconnect, Voice (TTS), and Android Auto Popup Alerts Card
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -758,6 +960,27 @@ fun ConnectionScreen(
                         checked = uiState.settings.autoConnectOnLaunch,
                         onCheckedChange = onSetAutoConnect,
                         tag = "auto_connect_switch"
+                    )
+                    SettingsSwitchRow(
+                        title = l10nStr(R.string.auto_reconnect_title),
+                        subtitle = l10nStr(R.string.auto_reconnect_sub),
+                        checked = uiState.settings.autoReconnectOnDrop,
+                        onCheckedChange = onSetAutoReconnect,
+                        tag = "auto_reconnect_switch"
+                    )
+                    SettingsSwitchRow(
+                        title = l10nStr(R.string.settings_bt_car_autoconnect),
+                        subtitle = l10nStr(R.string.settings_bt_car_autoconnect_desc),
+                        checked = uiState.settings.autoConnectOnBtCar,
+                        onCheckedChange = onSetAutoConnectBtCar,
+                        tag = "bt_car_autoconnect_switch"
+                    )
+                    SettingsSwitchRow(
+                        title = l10nStr(R.string.settings_fast_slow_polling),
+                        subtitle = l10nStr(R.string.settings_fast_slow_polling_desc),
+                        checked = uiState.settings.fastSlowPollingEnabled,
+                        onCheckedChange = onSetFastSlowPolling,
+                        tag = "fast_slow_polling_switch"
                     )
                     SettingsSwitchRow(
                         title = l10nStr(R.string.voice_alerts_title),
@@ -1001,6 +1224,34 @@ fun ConnectionScreen(
                         }
                     }
 
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { showBatteryTestDialog = true },
+                            border = BorderStroke(1.dp, NominalEmerald.copy(alpha = 0.65f)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("open_battery_test_button")
+                        ) {
+                            Icon(Icons.Filled.BatteryChargingFull, contentDescription = null, tint = NominalEmerald, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(l10nStr(R.string.batt_test_btn), color = NominalEmerald)
+                        }
+                        OutlinedButton(
+                            onClick = { showTerminalDialog = true },
+                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.65f)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("open_elm_terminal_button")
+                        ) {
+                            Icon(Icons.Filled.Terminal, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(l10nStr(R.string.terminal_btn), color = TelemetryCyan)
+                        }
+                    }
+
                     val bench = uiState.benchmarkResult
                     if (bench != null) {
                         val isBadClone = (bench.qualityLabel.contains("клон", ignoreCase = true) &&
@@ -1061,6 +1312,484 @@ fun ConnectionScreen(
                                     color = TextSecondary
                                 )
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Garage & JSON Backup Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("garage_backup_card"),
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(containerColor = CockpitSurface),
+                border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.35f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.DirectionsCar,
+                                contentDescription = null,
+                                tint = TelemetryCyan,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = l10nStr(R.string.garage_title),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = l10nStr(
+                                        R.string.garage_active_car,
+                                        uiState.activeVehicleProfile?.name ?: "—"
+                                    ),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = onOpenGarage,
+                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.7f)),
+                            modifier = Modifier.testTag("connection_open_garage_button")
+                        ) {
+                            Text(l10nStr(R.string.garage_manage_btn), color = TelemetryCyan)
+                        }
+                    }
+
+                    HorizontalDivider(color = CockpitBorder)
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Backup,
+                            contentDescription = null,
+                            tint = TelemetryCyan,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = l10nStr(R.string.backup_card_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = l10nStr(R.string.backup_card_desc),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { exportJsonLauncher.launch("obd2_auto_backup.json") },
+                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.7f)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("export_json_backup_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Download,
+                                contentDescription = null,
+                                tint = TelemetryCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(l10nStr(R.string.backup_export_btn), color = TelemetryCyan)
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                importJsonLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                            },
+                            border = BorderStroke(1.dp, MotorsportAmber.copy(alpha = 0.7f)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("import_json_backup_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Upload,
+                                contentDescription = null,
+                                tint = MotorsportAmber,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(l10nStr(R.string.backup_import_btn), color = MotorsportAmber)
+                        }
+                    }
+
+                    if (!backupStatus.isNullOrBlank()) {
+                        Text(
+                            text = backupStatus!!,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (backupStatus!!.contains("Ошибка", ignoreCase = true) ||
+                                backupStatus!!.contains("error", ignoreCase = true)
+                            ) {
+                                RedlineCrimson
+                            } else {
+                                NominalEmerald
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        // USB OTG Serial Adapter Card
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("usb_otg_card"),
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(containerColor = CockpitSurface),
+                border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.4f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Icon(
+                                imageVector = Icons.Filled.Usb,
+                                contentDescription = null,
+                                tint = TelemetryCyan,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = l10nStr(R.string.usb_card_title),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = l10nStr(R.string.usb_card_desc),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                        IconButton(
+                            onClick = onRefreshUsbDevices,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("usb_refresh_button")
+                        ) {
+                            Icon(Icons.Filled.Refresh, contentDescription = null, tint = TelemetryCyan)
+                        }
+                    }
+
+                    if (uiState.usbDevices.isEmpty()) {
+                        Text(
+                            text = l10nStr(R.string.usb_none),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextMuted
+                        )
+                    } else {
+                        uiState.usbDevices.forEach { usb ->
+                            Surface(
+                                shape = MaterialTheme.shapes.small,
+                                color = CockpitSurfaceElevated,
+                                border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.45f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = usb.productName,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "${usb.chipFamily} • VID:${usb.vendorId.toString(16)} PID:${usb.productId.toString(16)}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = TextSecondary
+                                        )
+                                    }
+                                    if (usb.hasPermission) {
+                                        Button(
+                                            onClick = { onConnectUsbDevice(usb.deviceId) },
+                                            colors = ButtonDefaults.buttonColors(containerColor = TelemetryCyan),
+                                            modifier = Modifier.testTag("usb_connect_${usb.deviceId}")
+                                        ) {
+                                            Text(l10nStr(R.string.action_connect), color = CarbonObsidian)
+                                        }
+                                    } else {
+                                        OutlinedButton(
+                                            onClick = { onRequestUsbPermission(usb.deviceId) },
+                                            border = BorderStroke(1.dp, MotorsportAmber.copy(alpha = 0.7f)),
+                                            modifier = Modifier.testTag("usb_grant_${usb.deviceId}")
+                                        ) {
+                                            Text(l10nStr(R.string.usb_grant_btn), color = MotorsportAmber)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Cloud Sync (Firebase Firestore + Google Sign-In) Card
+        item {
+            val cloud = uiState.cloudSyncState
+            val syncTimeFmt = remember(isEng) { SimpleDateFormat("dd.MM HH:mm", numLocale) }
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("cloud_sync_card"),
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(containerColor = CockpitSurface),
+                border = BorderStroke(1.dp, NominalEmerald.copy(alpha = 0.45f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.CloudSync,
+                            contentDescription = null,
+                            tint = NominalEmerald,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = l10nStr(R.string.cloud_card_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = l10nStr(R.string.cloud_card_desc),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+
+                    val currentUser = cloud.user
+                    if (currentUser == null) {
+                        Button(
+                            onClick = { onSignInGoogle(context) },
+                            enabled = cloud.status !is CloudSyncStatus.SigningIn,
+                            colors = ButtonDefaults.buttonColors(containerColor = TelemetryCyan),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("cloud_google_signin_button")
+                        ) {
+                            if (cloud.status is CloudSyncStatus.SigningIn) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = CarbonObsidian)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(l10nStr(R.string.cloud_signing_in), color = CarbonObsidian)
+                            } else {
+                                Icon(Icons.Filled.AccountCircle, contentDescription = null, tint = CarbonObsidian, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(l10nStr(R.string.cloud_signin_btn), color = CarbonObsidian)
+                            }
+                        }
+                    } else {
+                        Surface(
+                            shape = MaterialTheme.shapes.small,
+                            color = CockpitSurfaceElevated,
+                            border = BorderStroke(1.dp, NominalEmerald.copy(alpha = 0.45f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = currentUser.displayName ?: currentUser.email ?: currentUser.uid,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                currentUser.email?.let { email ->
+                                    Text(text = email, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = onSyncCloudNow,
+                                enabled = cloud.status !is CloudSyncStatus.Syncing,
+                                colors = ButtonDefaults.buttonColors(containerColor = NominalEmerald),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("cloud_sync_now_button")
+                            ) {
+                                if (cloud.status is CloudSyncStatus.Syncing) {
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = CarbonObsidian)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(l10nStr(R.string.cloud_syncing), color = CarbonObsidian)
+                                } else {
+                                    Text(l10nStr(R.string.cloud_sync_btn), color = CarbonObsidian)
+                                }
+                            }
+                            OutlinedButton(
+                                onClick = onSignOutCloud,
+                                border = BorderStroke(1.dp, RedlineCrimson.copy(alpha = 0.65f)),
+                                modifier = Modifier.testTag("cloud_signout_button")
+                            ) {
+                                Text(l10nStr(R.string.cloud_signout_btn), color = RedlineCrimson)
+                            }
+                        }
+                    }
+
+                    when (val st = cloud.status) {
+                        is CloudSyncStatus.Synced -> {
+                            Text(
+                                text = l10nStr(
+                                    R.string.cloud_synced_ok,
+                                    st.syncedItemsCount,
+                                    syncTimeFmt.format(Date(st.lastSyncMs))
+                                ),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = NominalEmerald
+                            )
+                        }
+                        is CloudSyncStatus.Error -> {
+                            Text(
+                                text = st.message,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = RedlineCrimson
+                            )
+                        }
+                        else -> Unit
+                    }
+                }
+            }
+        }
+
+        // Distribution & Safety/Privacy Policy Card (Google Play vs GitHub Direct)
+        item {
+            val isGithub = com.example.BuildConfig.IS_GITHUB_BUILD
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("play_readiness_card"),
+                shape = MaterialTheme.shapes.medium,
+                colors = CardDefaults.cardColors(containerColor = CockpitSurface),
+                border = BorderStroke(
+                    1.dp,
+                    if (isGithub) TelemetryCyan.copy(alpha = 0.45f) else MotorsportAmber.copy(alpha = 0.45f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.WorkspacePremium,
+                            contentDescription = null,
+                            tint = if (isGithub) NominalEmerald else MotorsportAmber,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (isGithub) {
+                                    l10nStr(R.string.pro_github_card_title)
+                                } else {
+                                    l10nStr(R.string.pro_card_title)
+                                },
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = when {
+                                    isGithub -> l10nStr(R.string.pro_github_card_desc)
+                                    uiState.hasProAccess -> l10nStr(R.string.pro_entitled_badge)
+                                    else -> l10nStr(R.string.pro_card_desc)
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (uiState.hasProAccess) NominalEmerald else TextSecondary
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = onOpenProDialog,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isGithub) NominalEmerald else MotorsportAmber
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("open_pro_dialog_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.WorkspacePremium,
+                                contentDescription = null,
+                                tint = CarbonObsidian,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isGithub) {
+                                    l10nStr(R.string.pro_github_open_btn)
+                                } else {
+                                    l10nStr(R.string.pro_open_btn)
+                                },
+                                color = CarbonObsidian
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = onOpenSafetyDialog,
+                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.65f)),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("open_safety_dialog_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Shield,
+                                contentDescription = null,
+                                tint = TelemetryCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(l10nStr(R.string.safety_privacy_btn), color = TelemetryCyan)
                         }
                     }
                 }

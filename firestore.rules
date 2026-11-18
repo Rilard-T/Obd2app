@@ -1,0 +1,215 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidVehicleProfile(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+        (!('vin' in data) || (data.vin is string && data.vin.size() >= 1 && data.vin.size() <= 32)) &&
+        data.displacementLiters is number && data.displacementLiters >= 0.3 && data.displacementLiters <= 12.0 &&
+        data.fuelType in ['PETROL', 'DIESEL', 'HYBRID', 'LPG'] &&
+        data.redlineRpm is int && data.redlineRpm >= 2000 && data.redlineRpm <= 15000 &&
+        data.shiftLightRpm is int && data.shiftLightRpm >= 1500 && data.shiftLightRpm <= 15000 &&
+        data.fuelPricePerLiter is number && data.fuelPricePerLiter >= 0 && data.fuelPricePerLiter <= 1000 &&
+        data.odometerKm is number && data.odometerKm >= 0 && data.odometerKm <= 5000000 &&
+        data.engineHours is number && data.engineHours >= 0 && data.engineHours <= 200000 &&
+        data.preferredPresetId is string && data.preferredPresetId.size() >= 1 && data.preferredPresetId.size() <= 40 &&
+        (!('curbWeightKg' in data) || (data.curbWeightKg is int && data.curbWeightKg >= 500 && data.curbWeightKg <= 15000)) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidMaintenanceItem(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+        data.vehicleKey is string && data.vehicleKey.size() >= 1 && data.vehicleKey.size() <= 128 &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+        data.category is string && data.category.size() >= 1 && data.category.size() <= 40 &&
+        data.intervalKm is int && data.intervalKm >= 0 && data.intervalKm <= 500000 &&
+        data.intervalHours is int && data.intervalHours >= 0 && data.intervalHours <= 20000 &&
+        data.lastServiceOdometerKm is number && data.lastServiceOdometerKm >= 0 && data.lastServiceOdometerKm <= 5000000 &&
+        data.lastServiceEngineHours is number && data.lastServiceEngineHours >= 0 && data.lastServiceEngineHours <= 200000 &&
+        data.lastServiceTimestampMs is int && data.lastServiceTimestampMs >= 0 &&
+        (!('notes' in data) || (data.notes is string && data.notes.size() <= 300)) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCustomPid(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+        data.shortName is string && data.shortName.size() >= 1 && data.shortName.size() <= 30 &&
+        data.modeAndPid is string && data.modeAndPid.size() >= 2 && data.modeAndPid.size() <= 16 &&
+        data.header is string && data.header.size() <= 16 &&
+        data.equation is string && data.equation.size() >= 1 && data.equation.size() <= 120 &&
+        data.unit is string && data.unit.size() <= 20 &&
+        data.minValue is number && data.maxValue is number &&
+        data.decimals is int && data.decimals >= 0 && data.decimals <= 4 &&
+        data.enabled is bool &&
+        (!('warningHigh' in data) || data.warningHigh is number) &&
+        (!('criticalHigh' in data) || data.criticalHigh is number) &&
+        (!('warningLow' in data) || data.warningLow is number) &&
+        (!('criticalLow' in data) || data.criticalLow is number) &&
+        data.alertsEnabled is bool &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidTripSummary(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+        data.vehicleName is string && data.vehicleName.size() >= 1 && data.vehicleName.size() <= 80 &&
+        data.startedAtMs is int && data.startedAtMs >= 0 &&
+        data.endedAtMs is int && data.endedAtMs >= 0 &&
+        data.distanceKm is number && data.distanceKm >= 0 && data.distanceKm <= 50000 &&
+        data.durationSec is int && data.durationSec >= 0 && data.durationSec <= 8640000 &&
+        data.fuelUsedLiters is number && data.fuelUsedLiters >= 0 && data.fuelUsedLiters <= 10000 &&
+        (!('avgLPer100Km' in data) || (data.avgLPer100Km is number && data.avgLPer100Km >= 0 && data.avgLPer100Km <= 100)) &&
+        data.avgSpeedKmh is number && data.avgSpeedKmh >= 0 && data.avgSpeedKmh <= 450 &&
+        data.maxSpeedKmh is number && data.maxSpeedKmh >= 0 && data.maxSpeedKmh <= 500 &&
+        data.estimatedCost is number && data.estimatedCost >= 0 && data.estimatedCost <= 10000000 &&
+        (!('ecoScore' in data) || (data.ecoScore is int && data.ecoScore >= 0 && data.ecoScore <= 100)) &&
+        (!('peakHorsepower' in data) || (data.peakHorsepower is number && data.peakHorsepower >= 0 && data.peakHorsepower <= 2000)) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /users/{userId} {
+
+      match /vehicles/{vehicleId} {
+        allow get: if isOwner(userId) && isValidId(vehicleId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(vehicleId) &&
+          incoming().keys().hasAll([
+            'userId', 'name', 'displacementLiters', 'fuelType', 'redlineRpm',
+            'shiftLightRpm', 'fuelPricePerLiter', 'odometerKm', 'engineHours',
+            'preferredPresetId', 'createdAt', 'updatedAt'
+          ]) &&
+          incoming().keys().hasOnly([
+            'userId', 'name', 'vin', 'displacementLiters', 'fuelType', 'redlineRpm',
+            'shiftLightRpm', 'fuelPricePerLiter', 'odometerKm', 'engineHours',
+            'preferredPresetId', 'curbWeightKg', 'createdAt', 'updatedAt'
+          ]) &&
+          isValidVehicleProfile(incoming());
+        allow update: if isOwner(userId) && isValidId(vehicleId) &&
+          isValidVehicleProfile(incoming()) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'name', 'vin', 'displacementLiters', 'fuelType', 'redlineRpm',
+            'shiftLightRpm', 'fuelPricePerLiter', 'odometerKm', 'engineHours',
+            'preferredPresetId', 'curbWeightKg', 'updatedAt'
+          ]);
+        allow delete: if isOwner(userId) && isValidId(vehicleId);
+      }
+
+      match /maintenance/{itemId} {
+        allow get: if isOwner(userId) && isValidId(itemId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(itemId) &&
+          incoming().keys().hasAll([
+            'userId', 'vehicleKey', 'title', 'category', 'intervalKm', 'intervalHours',
+            'lastServiceOdometerKm', 'lastServiceEngineHours', 'lastServiceTimestampMs',
+            'createdAt', 'updatedAt'
+          ]) &&
+          incoming().keys().hasOnly([
+            'userId', 'vehicleKey', 'title', 'category', 'intervalKm', 'intervalHours',
+            'lastServiceOdometerKm', 'lastServiceEngineHours', 'lastServiceTimestampMs',
+            'notes', 'createdAt', 'updatedAt'
+          ]) &&
+          isValidMaintenanceItem(incoming());
+        allow update: if isOwner(userId) && isValidId(itemId) &&
+          isValidMaintenanceItem(incoming()) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'vehicleKey', 'title', 'category', 'intervalKm', 'intervalHours',
+            'lastServiceOdometerKm', 'lastServiceEngineHours', 'lastServiceTimestampMs',
+            'notes', 'updatedAt'
+          ]);
+        allow delete: if isOwner(userId) && isValidId(itemId);
+      }
+
+      match /customPids/{pidId} {
+        allow get: if isOwner(userId) && isValidId(pidId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(pidId) &&
+          incoming().keys().hasAll([
+            'userId', 'name', 'shortName', 'modeAndPid', 'header', 'equation',
+            'unit', 'minValue', 'maxValue', 'decimals', 'enabled', 'alertsEnabled',
+            'createdAt', 'updatedAt'
+          ]) &&
+          incoming().keys().hasOnly([
+            'userId', 'name', 'shortName', 'modeAndPid', 'header', 'equation',
+            'unit', 'minValue', 'maxValue', 'decimals', 'enabled',
+            'warningHigh', 'criticalHigh', 'warningLow', 'criticalLow',
+            'alertsEnabled', 'createdAt', 'updatedAt'
+          ]) &&
+          isValidCustomPid(incoming());
+        allow update: if isOwner(userId) && isValidId(pidId) &&
+          isValidCustomPid(incoming()) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'name', 'shortName', 'modeAndPid', 'header', 'equation', 'unit',
+            'minValue', 'maxValue', 'decimals', 'enabled',
+            'warningHigh', 'criticalHigh', 'warningLow', 'criticalLow',
+            'alertsEnabled', 'updatedAt'
+          ]);
+        allow delete: if isOwner(userId) && isValidId(pidId);
+      }
+
+      match /trips/{tripId} {
+        allow get: if isOwner(userId) && isValidId(tripId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(tripId) &&
+          incoming().keys().hasAll([
+            'userId', 'vehicleName', 'startedAtMs', 'endedAtMs', 'distanceKm',
+            'durationSec', 'fuelUsedLiters', 'avgSpeedKmh', 'maxSpeedKmh',
+            'estimatedCost', 'createdAt', 'updatedAt'
+          ]) &&
+          incoming().keys().hasOnly([
+            'userId', 'vehicleName', 'startedAtMs', 'endedAtMs', 'distanceKm',
+            'durationSec', 'fuelUsedLiters', 'avgLPer100Km', 'avgSpeedKmh',
+            'maxSpeedKmh', 'estimatedCost', 'ecoScore', 'peakHorsepower',
+            'createdAt', 'updatedAt'
+          ]) &&
+          isValidTripSummary(incoming());
+        allow update: if isOwner(userId) && isValidId(tripId) &&
+          isValidTripSummary(incoming()) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'vehicleName', 'startedAtMs', 'endedAtMs', 'distanceKm',
+            'durationSec', 'fuelUsedLiters', 'avgLPer100Km', 'avgSpeedKmh',
+            'maxSpeedKmh', 'estimatedCost', 'ecoScore', 'peakHorsepower', 'updatedAt'
+          ]);
+        allow delete: if isOwner(userId) && isValidId(tripId);
+      }
+    }
+  }
+}

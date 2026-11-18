@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SettingsInputComponent
 import androidx.compose.material.icons.filled.WarningAmber
@@ -61,6 +62,8 @@ fun DashboardScreen(
     onTogglePinAuto: (String) -> Unit,
     onOpenSensorChart: (String) -> Unit,
     onOpenAndroidAutoPreview: () -> Unit,
+    onOpenHudMode: () -> Unit,
+    onOpenVoiceAssistant: () -> Unit,
     onDismissAlert: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -68,7 +71,7 @@ fun DashboardScreen(
     val autoSensorIds = uiState.settings.androidAutoSensorIds
     val allSensors = uiState.sensors
     val isFullscreenAuto =
-        uiState.settings.androidAutoDisplayMode == com.example.obd.data.AndroidAutoDisplayMode.FULLSCREEN_COCKPIT
+        uiState.settings.effectiveAndroidAutoDisplayMode == com.example.obd.data.AndroidAutoDisplayMode.FULLSCREEN_COCKPIT
     val activeCarIds = if (isFullscreenAuto) {
         (uiState.settings.fullscreenDialSensorIds + uiState.settings.fullscreenStripSensorIds).distinct()
     } else {
@@ -95,6 +98,46 @@ fun DashboardScreen(
                 onActionClick = onNavigateToConnection,
                 isEnglish = isEng
             )
+        }
+
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val activeCarName = uiState.activeVehicleProfile?.name ?: (if (isEng) "My Car" else "Авто")
+                val vinSuffix = uiState.vehicleInfo.vin?.let { " • ${it.takeLast(6)}" } ?: ""
+                Text(
+                    text = "$activeCarName$vinSuffix",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = TextSecondary,
+                    modifier = Modifier.weight(1f)
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = onOpenVoiceAssistant,
+                        border = BorderStroke(1.dp, MotorsportAmber.copy(alpha = 0.65f)),
+                        modifier = Modifier.testTag("dashboard_voice_ai_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Mic,
+                            contentDescription = null,
+                            tint = MotorsportAmber,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(l10nStr(R.string.voice_ai_btn), color = MotorsportAmber)
+                    }
+                    OutlinedButton(
+                        onClick = onOpenHudMode,
+                        border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.6f)),
+                        modifier = Modifier.testTag("dashboard_hud_button")
+                    ) {
+                        Text(l10nStr(R.string.btn_hud_mode), color = TelemetryCyan)
+                    }
+                }
+            }
         }
 
         uiState.activeAlert?.let { alert ->

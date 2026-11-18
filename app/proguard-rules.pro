@@ -12,10 +12,25 @@
 #   public *;
 #}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Keep @Keep annotated Firestore models and serialization classes
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
+-keep class androidx.annotation.Keep
+-keep @androidx.annotation.Keep class * { *; }
+-keepclassmembers class * {
+    @androidx.annotation.Keep *;
+}
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# kotlinx.serialization
+-keepattributes RuntimeVisibleAnnotations,AnnotationDefault
+-keepclassmembers class kotlinx.serialization.json.** { *; }
+-keep,includedescriptorclasses class com.example.obd.model.**$$serializer { *; }
+-keepclassmembers class com.example.obd.model.** {
+    *** Companion;
+}
+
+# Android Auto CarAppService
+-keep class com.example.car.** { *; }
+
+# Keep Room entities & DAOs
+-keep class com.example.obd.data.*Entity { *; }
+-keep class com.example.obd.cloud.* { *; }

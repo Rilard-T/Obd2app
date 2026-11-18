@@ -6,12 +6,14 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.obd.i18n.AppLocalization
 import com.example.obd.model.AppLanguage
 import com.example.obd.model.BluetoothTransportType
+import com.example.obd.model.CockpitDialTheme
 import com.example.obd.model.CockpitPreset
 import com.example.obd.model.ObdPid
 import com.example.obd.model.PressureUnit
@@ -35,12 +37,16 @@ enum class AndroidAutoDisplayMode(val label: String, val labelEn: String) {
 data class ObdUserSettings(
     val appLanguage: AppLanguage = AppLanguage.SYSTEM,
     val androidAutoSensorIds: List<String> = ObdPid.defaultAndroidAutoSensorIds,
-    val androidAutoDisplayMode: AndroidAutoDisplayMode = AndroidAutoDisplayMode.FULLSCREEN_COCKPIT,
+    val androidAutoDisplayMode: AndroidAutoDisplayMode = defaultDisplayModeForBuild(),
     val fullscreenDialSensorIds: List<String> = DEFAULT_FULLSCREEN_DIAL_IDS,
     val fullscreenStripSensorIds: List<String> = DEFAULT_FULLSCREEN_STRIP_IDS,
     val cockpitPresets: List<CockpitPreset> = DEFAULT_PRESETS,
     val activePresetId: String = DEFAULT_PRESET_ID,
+    val dialTheme: CockpitDialTheme = CockpitDialTheme.SPORT_CARBON,
+    val shiftLightEnabled: Boolean = true,
+    val shiftLightRpm: Int = 6000,
     val autoConnectOnLaunch: Boolean = true,
+    val autoReconnectOnDrop: Boolean = true,
     val voiceAlertsEnabled: Boolean = true,
     val aaPopupAlertsEnabled: Boolean = true,
     val ttsVolume: Float = 1.0f,
@@ -53,15 +59,39 @@ data class ObdUserSettings(
     val lastDeviceAddress: String? = null,
     val lastDeviceName: String? = null,
     val lastTransport: BluetoothTransportType = BluetoothTransportType.CLASSIC_SPP,
-    val hasRequestedStartupPermissions: Boolean = false
+    val wifiHost: String = "192.168.0.10",
+    val wifiPort: Int = 35000,
+    val activeVehicleProfileId: Long? = null,
+    val hasAcceptedSafetyDisclaimer: Boolean = false,
+    val isProPreviewEnabled: Boolean = false,
+    val hasRequestedStartupPermissions: Boolean = false,
+    val autoSaveTripOnDisconnect: Boolean = true,
+    val fuelCalibrationFactor: Float = 1.0f,
+    val speedCalibrationFactor: Float = 1.0f,
+    val fastSlowPollingEnabled: Boolean = true,
+    val autoConnectOnBtCar: Boolean = true
 ) {
     val activePreset: CockpitPreset
         get() = cockpitPresets.find { it.id == activePresetId } ?: cockpitPresets.first()
+
+    val effectiveAndroidAutoDisplayMode: AndroidAutoDisplayMode
+        get() = if (com.example.BuildConfig.ALLOW_AA_NAVIGATION_SURFACE) {
+            androidAutoDisplayMode
+        } else {
+            AndroidAutoDisplayMode.STANDARD_GRID
+        }
 
     val isEnglish: Boolean
         get() = AppLocalization.isEnglish(appLanguage)
 
     companion object {
+        fun defaultDisplayModeForBuild(): AndroidAutoDisplayMode =
+            if (com.example.BuildConfig.ALLOW_AA_NAVIGATION_SURFACE) {
+                AndroidAutoDisplayMode.FULLSCREEN_COCKPIT
+            } else {
+                AndroidAutoDisplayMode.STANDARD_GRID
+            }
+
         const val DEFAULT_PRESET_ID = "main"
 
         val DEFAULT_FULLSCREEN_DIAL_IDS: List<String> = listOf(
@@ -130,7 +160,11 @@ class SettingsDataStore(private val context: Context) {
         val FULLSCREEN_STRIP_PIDS = stringPreferencesKey("fullscreen_strip_pids")
         val COCKPIT_PRESETS_JSON = stringPreferencesKey("cockpit_presets_json")
         val ACTIVE_PRESET_ID = stringPreferencesKey("active_preset_id")
+        val DIAL_THEME = stringPreferencesKey("dial_theme")
+        val SHIFT_LIGHT_ENABLED = booleanPreferencesKey("shift_light_enabled")
+        val SHIFT_LIGHT_RPM = intPreferencesKey("shift_light_rpm")
         val AUTO_CONNECT_ON_LAUNCH = booleanPreferencesKey("auto_connect_on_launch")
+        val AUTO_RECONNECT_ON_DROP = booleanPreferencesKey("auto_reconnect_on_drop")
         val VOICE_ALERTS_ENABLED = booleanPreferencesKey("voice_alerts_enabled")
         val AA_POPUP_ALERTS_ENABLED = booleanPreferencesKey("aa_popup_alerts_enabled")
         val TTS_VOLUME = floatPreferencesKey("tts_volume")
@@ -143,7 +177,17 @@ class SettingsDataStore(private val context: Context) {
         val LAST_DEVICE_ADDRESS = stringPreferencesKey("last_device_address")
         val LAST_DEVICE_NAME = stringPreferencesKey("last_device_name")
         val LAST_TRANSPORT = stringPreferencesKey("last_transport")
+        val WIFI_HOST = stringPreferencesKey("wifi_host")
+        val WIFI_PORT = intPreferencesKey("wifi_port")
+        val ACTIVE_VEHICLE_PROFILE_ID = longPreferencesKey("active_vehicle_profile_id")
+        val HAS_ACCEPTED_SAFETY = booleanPreferencesKey("has_accepted_safety_disclaimer")
+        val PRO_PREVIEW_ENABLED = booleanPreferencesKey("pro_preview_enabled")
         val HAS_REQUESTED_STARTUP_PERMS = booleanPreferencesKey("has_requested_startup_permissions")
+        val AUTO_SAVE_TRIP_ON_DISCONNECT = booleanPreferencesKey("auto_save_trip_on_disconnect")
+        val FUEL_CALIBRATION_FACTOR = floatPreferencesKey("fuel_calibration_factor")
+        val SPEED_CALIBRATION_FACTOR = floatPreferencesKey("speed_calibration_factor")
+        val FAST_SLOW_POLLING_ENABLED = booleanPreferencesKey("fast_slow_polling_enabled")
+        val AUTO_CONNECT_ON_BT_CAR = booleanPreferencesKey("auto_connect_on_bt_car")
     }
 
     val settingsFlow: Flow<ObdUserSettings> = context.obdSettingsDataStore.data.map { prefs ->
@@ -156,9 +200,14 @@ class SettingsDataStore(private val context: Context) {
             .takeIf { it.isNotEmpty() }
             ?: ObdPid.defaultAndroidAutoSensorIds
 
-        val displayMode = prefs[Keys.ANDROID_AUTO_DISPLAY_MODE]?.let { name ->
+        val rawDisplayMode = prefs[Keys.ANDROID_AUTO_DISPLAY_MODE]?.let { name ->
             AndroidAutoDisplayMode.entries.find { it.name == name }
-        } ?: AndroidAutoDisplayMode.FULLSCREEN_COCKPIT
+        } ?: ObdUserSettings.defaultDisplayModeForBuild()
+        val displayMode = if (com.example.BuildConfig.ALLOW_AA_NAVIGATION_SURFACE) {
+            rawDisplayMode
+        } else {
+            AndroidAutoDisplayMode.STANDARD_GRID
+        }
 
         val presets = loadPresets(
             rawPresetsJson = prefs[Keys.COCKPIT_PRESETS_JSON],
@@ -167,6 +216,10 @@ class SettingsDataStore(private val context: Context) {
         )
         val requestedPresetId = prefs[Keys.ACTIVE_PRESET_ID] ?: ObdUserSettings.DEFAULT_PRESET_ID
         val activePreset = presets.find { it.id == requestedPresetId } ?: presets.first()
+
+        val dialTheme = prefs[Keys.DIAL_THEME]?.let { name ->
+            CockpitDialTheme.entries.find { it.name == name }
+        } ?: CockpitDialTheme.SPORT_CARBON
 
         val alertOverrides = loadAlertOverrides(prefs[Keys.ALERT_OVERRIDES_JSON])
 
@@ -186,7 +239,11 @@ class SettingsDataStore(private val context: Context) {
             fullscreenStripSensorIds = activePreset.stripSensorIds,
             cockpitPresets = presets,
             activePresetId = activePreset.id,
+            dialTheme = dialTheme,
+            shiftLightEnabled = prefs[Keys.SHIFT_LIGHT_ENABLED] ?: true,
+            shiftLightRpm = (prefs[Keys.SHIFT_LIGHT_RPM] ?: 6000).coerceIn(2500, 9500),
             autoConnectOnLaunch = prefs[Keys.AUTO_CONNECT_ON_LAUNCH] ?: true,
+            autoReconnectOnDrop = prefs[Keys.AUTO_RECONNECT_ON_DROP] ?: true,
             voiceAlertsEnabled = prefs[Keys.VOICE_ALERTS_ENABLED] ?: true,
             aaPopupAlertsEnabled = prefs[Keys.AA_POPUP_ALERTS_ENABLED] ?: true,
             ttsVolume = (prefs[Keys.TTS_VOLUME] ?: 1.0f).coerceIn(0.1f, 1.0f),
@@ -199,7 +256,17 @@ class SettingsDataStore(private val context: Context) {
             lastDeviceAddress = prefs[Keys.LAST_DEVICE_ADDRESS],
             lastDeviceName = prefs[Keys.LAST_DEVICE_NAME],
             lastTransport = transport,
-            hasRequestedStartupPermissions = prefs[Keys.HAS_REQUESTED_STARTUP_PERMS] ?: false
+            wifiHost = prefs[Keys.WIFI_HOST]?.ifBlank { "192.168.0.10" } ?: "192.168.0.10",
+            wifiPort = (prefs[Keys.WIFI_PORT] ?: 35000).coerceIn(1, 65535),
+            activeVehicleProfileId = prefs[Keys.ACTIVE_VEHICLE_PROFILE_ID],
+            hasAcceptedSafetyDisclaimer = prefs[Keys.HAS_ACCEPTED_SAFETY] ?: false,
+            isProPreviewEnabled = prefs[Keys.PRO_PREVIEW_ENABLED] ?: false,
+            hasRequestedStartupPermissions = prefs[Keys.HAS_REQUESTED_STARTUP_PERMS] ?: false,
+            autoSaveTripOnDisconnect = prefs[Keys.AUTO_SAVE_TRIP_ON_DISCONNECT] ?: true,
+            fuelCalibrationFactor = (prefs[Keys.FUEL_CALIBRATION_FACTOR] ?: 1.0f).coerceIn(0.70f, 1.35f),
+            speedCalibrationFactor = (prefs[Keys.SPEED_CALIBRATION_FACTOR] ?: 1.0f).coerceIn(0.85f, 1.15f),
+            fastSlowPollingEnabled = prefs[Keys.FAST_SLOW_POLLING_ENABLED] ?: true,
+            autoConnectOnBtCar = prefs[Keys.AUTO_CONNECT_ON_BT_CAR] ?: true
         )
     }
 
@@ -292,8 +359,31 @@ class SettingsDataStore(private val context: Context) {
     }
 
     suspend fun setAndroidAutoDisplayMode(mode: AndroidAutoDisplayMode) {
+        val safeMode = if (com.example.BuildConfig.ALLOW_AA_NAVIGATION_SURFACE) {
+            mode
+        } else {
+            AndroidAutoDisplayMode.STANDARD_GRID
+        }
         context.obdSettingsDataStore.edit { prefs ->
-            prefs[Keys.ANDROID_AUTO_DISPLAY_MODE] = mode.name
+            prefs[Keys.ANDROID_AUTO_DISPLAY_MODE] = safeMode.name
+        }
+    }
+
+    suspend fun setDialTheme(theme: CockpitDialTheme) {
+        context.obdSettingsDataStore.edit { prefs ->
+            prefs[Keys.DIAL_THEME] = theme.name
+        }
+    }
+
+    suspend fun setShiftLightEnabled(enabled: Boolean) {
+        context.obdSettingsDataStore.edit { prefs ->
+            prefs[Keys.SHIFT_LIGHT_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setShiftLightRpm(rpm: Int) {
+        context.obdSettingsDataStore.edit { prefs ->
+            prefs[Keys.SHIFT_LIGHT_RPM] = rpm.coerceIn(2500, 9500)
         }
     }
 
@@ -451,6 +541,12 @@ class SettingsDataStore(private val context: Context) {
         }
     }
 
+    suspend fun setAutoReconnectOnDrop(enabled: Boolean) {
+        context.obdSettingsDataStore.edit { prefs ->
+            prefs[Keys.AUTO_RECONNECT_ON_DROP] = enabled
+        }
+    }
+
     suspend fun setVoiceAlertsEnabled(enabled: Boolean) {
         context.obdSettingsDataStore.edit { prefs ->
             prefs[Keys.VOICE_ALERTS_ENABLED] = enabled
@@ -520,6 +616,89 @@ class SettingsDataStore(private val context: Context) {
             prefs[Keys.LAST_DEVICE_ADDRESS] = address
             prefs[Keys.LAST_DEVICE_NAME] = name
             prefs[Keys.LAST_TRANSPORT] = transport.name
+        }
+    }
+
+    suspend fun saveWifiConfig(host: String, port: Int) {
+        context.obdSettingsDataStore.edit { prefs ->
+            prefs[Keys.WIFI_HOST] = host.trim().ifBlank { "192.168.0.10" }
+            prefs[Keys.WIFI_PORT] = port.coerceIn(1, 65535)
+        }
+    }
+
+    suspend fun setActiveVehicleProfileId(profileId: Long?) {
+        context.obdSettingsDataStore.edit { prefs ->
+            if (profileId == null) {
+                prefs.remove(Keys.ACTIVE_VEHICLE_PROFILE_ID)
+            } else {
+                prefs[Keys.ACTIVE_VEHICLE_PROFILE_ID] = profileId
+            }
+        }
+    }
+
+    suspend fun acceptSafetyDisclaimer() {
+        context.obdSettingsDataStore.edit { prefs ->
+            prefs[Keys.HAS_ACCEPTED_SAFETY] = true
+        }
+    }
+
+    suspend fun setProPreviewEnabled(enabled: Boolean) {
+        context.obdSettingsDataStore.edit { prefs ->
+            prefs[Keys.PRO_PREVIEW_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setAutoSaveTripOnDisconnect(enabled: Boolean) {
+        context.obdSettingsDataStore.edit { prefs ->
+            prefs[Keys.AUTO_SAVE_TRIP_ON_DISCONNECT] = enabled
+        }
+    }
+
+    suspend fun setFuelCalibrationFactor(factor: Float) {
+        context.obdSettingsDataStore.edit { prefs ->
+            prefs[Keys.FUEL_CALIBRATION_FACTOR] = factor.coerceIn(0.70f, 1.35f)
+        }
+    }
+
+    suspend fun setSpeedCalibrationFactor(factor: Float) {
+        context.obdSettingsDataStore.edit { prefs ->
+            prefs[Keys.SPEED_CALIBRATION_FACTOR] = factor.coerceIn(0.85f, 1.15f)
+        }
+    }
+
+    suspend fun setFastSlowPollingEnabled(enabled: Boolean) {
+        context.obdSettingsDataStore.edit { prefs ->
+            prefs[Keys.FAST_SLOW_POLLING_ENABLED] = enabled
+        }
+    }
+
+    suspend fun setAutoConnectOnBtCar(enabled: Boolean) {
+        context.obdSettingsDataStore.edit { prefs ->
+            prefs[Keys.AUTO_CONNECT_ON_BT_CAR] = enabled
+        }
+    }
+
+    suspend fun applyBackupPayload(payload: AppBackupPayload) {
+        context.obdSettingsDataStore.edit { prefs ->
+            CockpitDialTheme.entries.find { it.name == payload.dialTheme }?.let {
+                prefs[Keys.DIAL_THEME] = it.name
+            }
+            prefs[Keys.SHIFT_LIGHT_ENABLED] = payload.shiftLightEnabled
+            prefs[Keys.SHIFT_LIGHT_RPM] = payload.shiftLightRpm.coerceIn(2500, 9500)
+            if (payload.cockpitPresets.isNotEmpty()) {
+                prefs[Keys.COCKPIT_PRESETS_JSON] = json.encodeToString(payload.cockpitPresets)
+                val targetPreset = payload.cockpitPresets.find { it.id == payload.activePresetId }
+                    ?: payload.cockpitPresets.first()
+                prefs[Keys.ACTIVE_PRESET_ID] = targetPreset.id
+                prefs[Keys.FULLSCREEN_DIAL_PIDS] = targetPreset.dialSensorIds.joinToString(",")
+                prefs[Keys.FULLSCREEN_STRIP_PIDS] = targetPreset.stripSensorIds.joinToString(",")
+            }
+            if (payload.androidAutoSensorIds.isNotEmpty()) {
+                prefs[Keys.ANDROID_AUTO_PIDS] = payload.androidAutoSensorIds.take(6).joinToString(",")
+            }
+            if (payload.alertOverrides.isNotEmpty()) {
+                prefs[Keys.ALERT_OVERRIDES_JSON] = json.encodeToString(payload.alertOverrides)
+            }
         }
     }
 }

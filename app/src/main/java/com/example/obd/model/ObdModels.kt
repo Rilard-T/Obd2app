@@ -453,7 +453,32 @@ data class SensorReading(
 
 enum class BluetoothTransportType(val label: String) {
     CLASSIC_SPP("Bluetooth Classic (SPP)"),
-    BLE("Bluetooth LE (GATT)")
+    BLE("Bluetooth LE (GATT)"),
+    WIFI_TCP("Wi-Fi ELM327 (TCP)"),
+    USB_SERIAL("USB OTG (ELM327)")
+}
+
+enum class CockpitDialTheme(val label: String, val labelEn: String) {
+    SPORT_CARBON("Спорт Карбон", "Sport Carbon"),
+    TRACK_RED("Трек Красный", "Track Red"),
+    NEON_CYAN("Неон Телеметрия", "Neon Cyan"),
+    DAYLIGHT_HIGH_CONTRAST("День (Светлая)", "Daylight Contrast");
+
+    fun localizedLabel(isEnglish: Boolean): String = if (isEnglish) labelEn else label
+}
+
+enum class FuelType(
+    val label: String,
+    val labelEn: String,
+    /** Grams of air per liter of fuel combusted at stoichiometric lambda=1 */
+    val airGramsPerLiter: Float
+) {
+    PETROL("Бензин", "Petrol / Gas", 14.7f * 745f),
+    DIESEL("Дизель", "Diesel", 18.0f * 835f),
+    HYBRID("Гибрид", "Hybrid", 14.7f * 745f),
+    LPG("Газ (LPG)", "LPG / Propane", 15.5f * 540f);
+
+    fun localizedLabel(isEnglish: Boolean): String = if (isEnglish) labelEn else label
 }
 
 data class BluetoothDeviceItem(
@@ -497,13 +522,133 @@ data class DtcCode(
     val severity: DtcSeverity
 )
 
+data class Mode06TestResult(
+    val midHex: String,
+    val tidHex: String,
+    val nameRu: String,
+    val nameEn: String,
+    val value: Int,
+    val minLimit: Int,
+    val maxLimit: Int,
+    val passed: Boolean,
+    val unitLabel: String = ""
+) {
+    fun localizedName(isEnglish: Boolean): String = if (isEnglish) nameEn else nameRu
+}
+
 data class DtcState(
     val milOn: Boolean = false,
     val ecuReportedCount: Int = 0,
     val codes: List<DtcCode> = emptyList(),
+    val pendingCodes: List<DtcCode> = emptyList(),
+    val mode06Tests: List<Mode06TestResult> = emptyList(),
     val isScanning: Boolean = false,
     val lastScanTimestampMs: Long? = null,
     val statusMessage: String? = null
+)
+
+data class ImMonitorStatus(
+    val id: String,
+    val nameRu: String,
+    val nameEn: String,
+    val supported: Boolean,
+    val completed: Boolean
+) {
+    fun localizedName(isEnglish: Boolean): String = if (isEnglish) nameEn else nameRu
+}
+
+data class ImReadinessResult(
+    val milOn: Boolean,
+    val dtcCount: Int,
+    val isCompressionIgnition: Boolean,
+    val monitors: List<ImMonitorStatus>,
+    val allSupportedReady: Boolean,
+    val updatedAtMs: Long = System.currentTimeMillis()
+)
+
+data class FreezeFrameData(
+    val dtcCode: String? = null,
+    val rpm: Float? = null,
+    val speedKmh: Float? = null,
+    val coolantTempC: Float? = null,
+    val engineLoadPct: Float? = null,
+    val stftPct: Float? = null,
+    val ltftPct: Float? = null,
+    val intakeMapKpa: Float? = null,
+    val isSimulated: Boolean = false,
+    val capturedAtMs: Long = System.currentTimeMillis()
+)
+
+data class VehicleInfoState(
+    val vin: String? = null,
+    val calibrationId: String? = null,
+    val matchedProfileName: String? = null
+)
+
+data class TripStats(
+    val distanceKm: Float = 0f,
+    val elapsedSec: Long = 0L,
+    val instantLPer100Km: Float? = null,
+    val instantLPerHour: Float? = null,
+    val avgLPer100Km: Float? = null,
+    val fuelUsedLiters: Float = 0f,
+    val estimatedCost: Float = 0f,
+    val avgSpeedKmh: Float = 0f,
+    val maxSpeedKmh: Float = 0f,
+    val maxRpm: Float = 0f,
+    val maxCoolantTempC: Float? = null,
+    val idleTimeSec: Long = 0L,
+    val instantHorsepower: Float? = null,
+    val instantTorqueNm: Float? = null,
+    val peakHorsepower: Float = 0f,
+    val peakTorqueNm: Float = 0f,
+    val ecoScore: Int = 100,
+    val harshEventsCount: Int = 0,
+    val coldRevSeconds: Long = 0L
+)
+
+enum class AccelDiscipline(
+    val id: String,
+    val labelRu: String,
+    val labelEn: String,
+    val startSpeedKmh: Float,
+    val targetSpeedKmh: Float?,
+    val targetDistanceMeters: Float? = null
+) {
+    ZERO_TO_60("0-60", "0–60 км/ч", "0–60 km/h", 0f, 60f),
+    ZERO_TO_100("0-100", "0–100 км/ч", "0–100 km/h", 0f, 100f),
+    ROLL_60_TO_100("60-100", "60–100 км/ч", "60–100 km/h", 60f, 100f),
+    QUARTER_MILE("0-402m", "0–402 м", "0–402 m (1/4 mi)", 0f, null, 402.336f);
+
+    fun localizedLabel(isEnglish: Boolean): String = if (isEnglish) labelEn else labelRu
+}
+
+enum class AccelTimerPhase {
+    IDLE,
+    ARMED,
+    RUNNING,
+    COMPLETED
+}
+
+data class AccelSamplePoint(
+    val elapsedSec: Float,
+    val speedKmh: Float,
+    val rpm: Float,
+    val horsepower: Float = 0f
+)
+
+data class AccelTimerState(
+    val discipline: AccelDiscipline = AccelDiscipline.ZERO_TO_100,
+    val phase: AccelTimerPhase = AccelTimerPhase.IDLE,
+    val elapsedSec: Float = 0f,
+    val currentSpeedKmh: Float = 0f,
+    val coveredMeters: Float = 0f,
+    val peakSpeedKmh: Float = 0f,
+    val peakRpm: Float = 0f,
+    val peakHorsepower: Float = 0f,
+    val peakTorqueNm: Float = 0f,
+    val lastResultSec: Float? = null,
+    val samples: List<AccelSamplePoint> = emptyList()
 )
 
 @Serializable
@@ -580,4 +725,220 @@ data class TtsVoiceOption(
     val label: String,
     val localeTag: String,
     val isNetworkRequired: Boolean
+)
+
+data class OemPidSpec(
+    val nameRu: String,
+    val nameEn: String,
+    val shortName: String,
+    val modeAndPid: String,
+    val header: String = "",
+    val equation: String,
+    val unit: String,
+    val minValue: Float,
+    val maxValue: Float,
+    val decimals: Int = 1,
+    val warningHigh: Float? = null,
+    val criticalHigh: Float? = null
+) {
+    fun localizedName(isEnglish: Boolean): String = if (isEnglish) nameEn else nameRu
+}
+
+data class OemBrandPack(
+    val id: String,
+    val brandName: String,
+    val subtitleRu: String,
+    val subtitleEn: String,
+    val pids: List<OemPidSpec>
+) {
+    fun localizedSubtitle(isEnglish: Boolean): String = if (isEnglish) subtitleEn else subtitleRu
+}
+
+data class DataloggerFrame(
+    val timestampMs: Long,
+    val values: Map<String, Float>
+)
+
+data class DataloggerState(
+    val isRecording: Boolean = false,
+    val startedAtMs: Long? = null,
+    val frames: List<DataloggerFrame> = emptyList(),
+    val sampleCount: Int = 0
+)
+
+data class UsbSerialDeviceItem(
+    val deviceId: Int,
+    val deviceName: String,
+    val productName: String,
+    val vendorId: Int,
+    val productId: Int,
+    val chipFamily: String,
+    val hasPermission: Boolean
+)
+
+enum class MaintenanceStatus {
+    OK,
+    DUE_SOON,
+    OVERDUE
+}
+
+sealed interface VoiceAssistantState {
+    data object Idle : VoiceAssistantState
+    data class Thinking(val question: String) : VoiceAssistantState
+    data class Answered(val question: String, val answer: String) : VoiceAssistantState
+    data class Error(val message: String) : VoiceAssistantState
+}
+
+data class GpsSpeedState(
+    val isTracking: Boolean = false,
+    val hasPermission: Boolean = false,
+    val gpsSpeedKmh: Float? = null,
+    val obdRawSpeedKmh: Float? = null,
+    val suggestedSpeedFactor: Float? = null,
+    val accuracyMeters: Float? = null,
+    val errorMessage: String? = null
+)
+
+data class CloudUserSummary(
+    val uid: String,
+    val displayName: String?,
+    val email: String?
+)
+
+sealed interface CloudSyncStatus {
+    data object Idle : CloudSyncStatus
+    data object SigningIn : CloudSyncStatus
+    data object Syncing : CloudSyncStatus
+    data class Synced(val lastSyncMs: Long, val syncedItemsCount: Int) : CloudSyncStatus
+    data class Error(val message: String) : CloudSyncStatus
+}
+
+data class CloudSyncState(
+    val user: CloudUserSummary? = null,
+    val status: CloudSyncStatus = CloudSyncStatus.Idle
+)
+
+data class BillingUiState(
+    val isPlayStoreAvailable: Boolean = false,
+    val isReady: Boolean = false,
+    val hasProEntitlement: Boolean = false,
+    val livePricesBySku: Map<String, String> = emptyMap(),
+    val statusMessage: String? = null
+)
+
+enum class ResetSuspicionLevel {
+    NONE,
+    CAUTION,
+    HIGH
+}
+
+data class PrePurchaseInspectionResult(
+    val timestampMs: Long = System.currentTimeMillis(),
+    val vehicleName: String = "",
+    val vin: String? = null,
+    val calId: String? = null,
+    val milOn: Boolean = false,
+    val activeDtcCount: Int = 0,
+    val pendingDtcCount: Int = 0,
+    val distanceSinceCodesClearedKm: Int? = null,
+    val timeSinceCodesClearedMin: Int? = null,
+    val distanceWithMilOnKm: Int? = null,
+    val warmupsSinceCodesCleared: Int? = null,
+    val imReadyCount: Int = 0,
+    val imSupportedCount: Int = 0,
+    val imAllReady: Boolean = true,
+    val mode06FailedCount: Int = 0,
+    val batteryVoltage: Float? = null,
+    val coolantTempC: Float? = null,
+    val resetSuspicion: ResetSuspicionLevel = ResetSuspicionLevel.NONE,
+    val aiVerdict: String? = null,
+    val isRunning: Boolean = false,
+    val errorMessage: String? = null
+)
+
+enum class BatteryTestPhase {
+    IDLE,
+    RESTING_SAMPLE,
+    CRANKING_WATCH,
+    CHARGING_IDLE,
+    CHARGING_LOAD,
+    COMPLETED,
+    FAILED
+}
+
+data class BatteryTestState(
+    val phase: BatteryTestPhase = BatteryTestPhase.IDLE,
+    val liveVoltage: Float? = null,
+    val restingVoltage: Float? = null,
+    val minCrankingVoltage: Float? = null,
+    val idleChargingVoltage: Float? = null,
+    val loadChargingVoltage: Float? = null,
+    val progressPct: Float = 0f,
+    val batteryStatusRu: String = "",
+    val batteryStatusEn: String = "",
+    val alternatorStatusRu: String = "",
+    val alternatorStatusEn: String = "",
+    val errorMessage: String? = null
+)
+
+enum class PhotoAnalysisMode {
+    DASH_WARNING_LIGHT,
+    FUEL_RECEIPT,
+    SERVICE_INVOICE
+}
+
+data class ParsedFuelReceipt(
+    val liters: Float,
+    val totalCost: Float,
+    val pricePerLiter: Float,
+    val note: String = ""
+)
+
+data class ParsedServiceInvoice(
+    val title: String,
+    val category: String,
+    val odometerKm: Int? = null,
+    val notes: String = ""
+)
+
+sealed interface PhotoAnalysisState {
+    data object Idle : PhotoAnalysisState
+    data class Analyzing(val mode: PhotoAnalysisMode) : PhotoAnalysisState
+    data class DashLightResult(val explanation: String) : PhotoAnalysisState
+    data class FuelReceiptResult(val receipt: ParsedFuelReceipt, val rawSummary: String) : PhotoAnalysisState
+    data class ServiceInvoiceResult(val invoice: ParsedServiceInvoice, val rawSummary: String) : PhotoAnalysisState
+    data class Error(val message: String) : PhotoAnalysisState
+}
+
+data class SuggestedMaintenanceSpec(
+    val title: String,
+    val category: String,
+    val intervalKm: Int,
+    val intervalHours: Int = 0
+)
+
+data class AiVehicleSuggestion(
+    val displayName: String,
+    val displacementLiters: Float,
+    val fuelType: FuelType,
+    val redlineRpm: Int,
+    val shiftLightRpm: Int,
+    val curbWeightKg: Int,
+    val recommendedOemPackId: String?,
+    val maintenanceItems: List<SuggestedMaintenanceSpec>
+)
+
+sealed interface AiVehicleSuggestionState {
+    data object Idle : AiVehicleSuggestionState
+    data object Loading : AiVehicleSuggestionState
+    data class Ready(val suggestion: AiVehicleSuggestion) : AiVehicleSuggestionState
+    data class Error(val message: String) : AiVehicleSuggestionState
+}
+
+data class TerminalEntry(
+    val id: Long,
+    val command: String,
+    val response: String,
+    val latencyMs: Long,
+    val isError: Boolean = false
 )

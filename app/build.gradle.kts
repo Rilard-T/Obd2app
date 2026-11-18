@@ -13,12 +13,28 @@ android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
+  val distributionChannel = (project.findProperty("distributionChannel") as? String)
+    ?.trim()
+    ?.lowercase()
+    ?.takeIf { it == "github" || it == "play" }
+    ?: "play"
+  val isGithubBuild = distributionChannel == "github"
+  val githubRepoUrlRaw = (project.findProperty("githubRepoUrl") as? String)
+    ?.trim()
+    ?.replace("\"", "")
+    .orEmpty()
+
   defaultConfig {
     applicationId = "com.aistudio.obd2auto.vkmrtx"
     minSdk = 24
     targetSdk = 36
     versionCode = 1
     versionName = "1.0"
+
+    buildConfigField("String", "DISTRIBUTION_CHANNEL", "\"$distributionChannel\"")
+    buildConfigField("boolean", "IS_GITHUB_BUILD", isGithubBuild.toString())
+    buildConfigField("boolean", "ALLOW_AA_NAVIGATION_SURFACE", isGithubBuild.toString())
+    buildConfigField("String", "GITHUB_RELEASES_URL", "\"$githubRepoUrlRaw\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -69,6 +85,14 @@ android {
     includeInApk = false
     includeInBundle = true
   }
+
+  sourceSets {
+    getByName("main") {
+      if (isGithubBuild) {
+        manifest.srcFile("src/github/AndroidManifest.xml")
+      }
+    }
+  }
 }
 
 // Configure the Secrets Gradle Plugin to use .env and .env.example files
@@ -85,7 +109,7 @@ googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.W
 // This makes it easy to add them back in the future if needed.
 dependencies {
   implementation(platform(libs.androidx.compose.bom))
-  // implementation(platform(libs.firebase.bom))
+  implementation(platform(libs.firebase.bom))
   // implementation(libs.accompanist.permissions)
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.car.app)
@@ -110,25 +134,22 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   // implementation(libs.coil.compose)
   // implementation(libs.converter.moshi)
-  // implementation(libs.firebase.ai)
-  // Uncomment to use Firestore:
-  // implementation(libs.firebase.firestore)
-
-  // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google
-  // Sign-In via Credential Manager:
-  // implementation(libs.firebase.auth)
-  // implementation(libs.androidx.credentials)
-  // implementation(libs.androidx.credentials.play.services)
-  // implementation(libs.googleid)
-  // implementation(libs.firebase.appcheck.recaptcha)
-  // implementation(libs.firebase.appcheck.debug)
+  implementation(libs.firebase.ai)
+  implementation(libs.firebase.firestore)
+  implementation(libs.firebase.auth)
+  implementation(libs.androidx.credentials)
+  implementation(libs.androidx.credentials.play.services)
+  implementation(libs.googleid)
+  implementation(libs.firebase.appcheck.recaptcha)
+  implementation(libs.firebase.appcheck.debug)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.kotlinx.serialization.json)
   // implementation(libs.logging.interceptor)
   // implementation(libs.moshi.kotlin)
   // implementation(libs.okhttp)
-  // implementation(libs.play.services.location)
+  implementation(libs.play.services.location)
+  implementation(libs.play.billing.ktx)
   // implementation(libs.retrofit)
   testImplementation(libs.androidx.car.app.testing)
   testImplementation(libs.androidx.compose.ui.test.junit4)

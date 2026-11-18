@@ -1,0 +1,166 @@
+{
+  "entities": {
+    "VehicleProfile": {
+      "title": "VehicleProfile",
+      "description": "Vehicle garage profile synced across user devices",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of owner" },
+        "name": { "type": "string", "description": "Vehicle display name" },
+        "vin": { "type": "string", "description": "Optional 17-character VIN" },
+        "displacementLiters": { "type": "number", "description": "Engine displacement in liters" },
+        "fuelType": { "type": "string", "enum": ["PETROL", "DIESEL", "HYBRID", "LPG"] },
+        "redlineRpm": { "type": "integer", "description": "Engine redline RPM" },
+        "shiftLightRpm": { "type": "integer", "description": "Shift-light threshold RPM" },
+        "fuelPricePerLiter": { "type": "number", "description": "Fuel price per liter" },
+        "odometerKm": { "type": "number", "description": "Tracked vehicle odometer in km" },
+        "engineHours": { "type": "number", "description": "Tracked engine hours" },
+        "preferredPresetId": { "type": "string", "description": "Preferred cockpit dial preset ID" },
+        "curbWeightKg": { "type": "integer", "description": "Optional vehicle curb weight in kg for virtual dyno" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update" }
+      },
+      "required": [
+        "userId",
+        "name",
+        "displacementLiters",
+        "fuelType",
+        "redlineRpm",
+        "shiftLightRpm",
+        "fuelPricePerLiter",
+        "odometerKm",
+        "engineHours",
+        "preferredPresetId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "MaintenanceItem": {
+      "title": "MaintenanceItem",
+      "description": "Scheduled maintenance reminder tracked by mileage and engine hours",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of owner" },
+        "vehicleKey": { "type": "string", "description": "Vehicle key linking reminder to car profile" },
+        "title": { "type": "string", "description": "Service task title" },
+        "category": { "type": "string", "description": "Service category key" },
+        "intervalKm": { "type": "integer", "description": "Service interval in kilometers" },
+        "intervalHours": { "type": "integer", "description": "Service interval in engine hours" },
+        "lastServiceOdometerKm": { "type": "number", "description": "Odometer reading at last service" },
+        "lastServiceEngineHours": { "type": "number", "description": "Engine hours at last service" },
+        "lastServiceTimestampMs": { "type": "integer", "description": "Epoch milliseconds of last service" },
+        "notes": { "type": "string", "description": "Optional notes or part numbers" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update" }
+      },
+      "required": [
+        "userId",
+        "vehicleKey",
+        "title",
+        "category",
+        "intervalKm",
+        "intervalHours",
+        "lastServiceOdometerKm",
+        "lastServiceEngineHours",
+        "lastServiceTimestampMs",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CustomPid": {
+      "title": "CustomPid",
+      "description": "User-defined Torque/UDS custom OBD2 PID synced across devices",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of owner" },
+        "name": { "type": "string", "description": "Full display name" },
+        "shortName": { "type": "string", "description": "Compact label" },
+        "modeAndPid": { "type": "string", "description": "Hex OBD2 mode and PID" },
+        "header": { "type": "string", "description": "Optional CAN header (ATSH)" },
+        "equation": { "type": "string", "description": "Torque mathematical formula" },
+        "unit": { "type": "string", "description": "Measurement unit" },
+        "minValue": { "type": "number", "description": "Gauge minimum value" },
+        "maxValue": { "type": "number", "description": "Gauge maximum value" },
+        "decimals": { "type": "integer", "description": "Decimal precision" },
+        "enabled": { "type": "boolean", "description": "Polling enabled flag" },
+        "warningHigh": { "type": "number", "description": "Optional high warning threshold" },
+        "criticalHigh": { "type": "number", "description": "Optional high critical threshold" },
+        "warningLow": { "type": "number", "description": "Optional low warning threshold" },
+        "criticalLow": { "type": "number", "description": "Optional low critical threshold" },
+        "alertsEnabled": { "type": "boolean", "description": "Alert enabled flag" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update" }
+      },
+      "required": [
+        "userId",
+        "name",
+        "shortName",
+        "modeAndPid",
+        "header",
+        "equation",
+        "unit",
+        "minValue",
+        "maxValue",
+        "decimals",
+        "enabled",
+        "alertsEnabled",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TripSummary": {
+      "title": "TripSummary",
+      "description": "Completed trip computer summary synced across devices",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of owner" },
+        "vehicleName": { "type": "string", "description": "Vehicle name during trip" },
+        "startedAtMs": { "type": "integer", "description": "Trip start epoch ms" },
+        "endedAtMs": { "type": "integer", "description": "Trip end epoch ms" },
+        "distanceKm": { "type": "number", "description": "Distance traveled in km" },
+        "durationSec": { "type": "integer", "description": "Trip duration in seconds" },
+        "fuelUsedLiters": { "type": "number", "description": "Fuel consumed in liters" },
+        "avgLPer100Km": { "type": "number", "description": "Optional average fuel economy" },
+        "avgSpeedKmh": { "type": "number", "description": "Average speed km/h" },
+        "maxSpeedKmh": { "type": "number", "description": "Peak speed km/h" },
+        "estimatedCost": { "type": "number", "description": "Estimated fuel cost" },
+        "ecoScore": { "type": "integer", "description": "Optional driving smoothness & care score (0-100)" },
+        "peakHorsepower": { "type": "number", "description": "Optional peak estimated virtual dyno horsepower" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update" }
+      },
+      "required": [
+        "userId",
+        "vehicleName",
+        "startedAtMs",
+        "endedAtMs",
+        "distanceKm",
+        "durationSec",
+        "fuelUsedLiters",
+        "avgSpeedKmh",
+        "maxSpeedKmh",
+        "estimatedCost",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/vehicles/{vehicleId}": {
+      "schema": { "$ref": "#/entities/VehicleProfile" },
+      "description": "Authenticated user's synced vehicle profiles"
+    },
+    "/users/{userId}/maintenance/{itemId}": {
+      "schema": { "$ref": "#/entities/MaintenanceItem" },
+      "description": "Authenticated user's maintenance service items"
+    },
+    "/users/{userId}/customPids/{pidId}": {
+      "schema": { "$ref": "#/entities/CustomPid" },
+      "description": "Authenticated user's custom Torque/UDS PIDs"
+    },
+    "/users/{userId}/trips/{tripId}": {
+      "schema": { "$ref": "#/entities/TripSummary" },
+      "description": "Authenticated user's trip summaries"
+    }
+  }
+}

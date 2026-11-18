@@ -36,6 +36,13 @@ class ObdCarSession : Session() {
 
     override fun onCreateScreen(intent: Intent): Screen {
         val repository = (carContext.applicationContext as ObdApplication).telemetryRepository
+        repository.tryAutoConnect("Android Auto")
+
+        if (!com.example.BuildConfig.ALLOW_AA_NAVIGATION_SURFACE) {
+            surfaceController = null
+            return ObdMainCarScreen(carContext, surfaceController = null)
+        }
+
         val controller = surfaceController ?: CockpitSurfaceController(repository).also { created ->
             surfaceController = created
             created.startObserving()
@@ -51,9 +58,7 @@ class ObdCarSession : Session() {
             })
         }
 
-        repository.tryAutoConnect("Android Auto")
-
-        val mode = repository.settings.value.androidAutoDisplayMode
+        val mode = repository.settings.value.effectiveAndroidAutoDisplayMode
         return if (mode == AndroidAutoDisplayMode.FULLSCREEN_COCKPIT) {
             FullscreenCockpitCarScreen(carContext, controller, isPushedOnTopOfMenu = false)
         } else {
