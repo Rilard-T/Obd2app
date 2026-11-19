@@ -12,9 +12,11 @@ import com.example.obd.data.AccelerationRunEntity
 import com.example.obd.data.AndroidAutoDisplayMode
 import com.example.obd.data.CustomPidEntity
 import com.example.obd.data.DiagnosticScanEntity
+import com.example.obd.data.FuelTrimHealthSummary
 import com.example.obd.data.MaintenanceItemEntity
 import com.example.obd.data.ObdLogEntry
 import com.example.obd.data.ObdUserSettings
+import com.example.obd.data.TelemetrySnapshotEntity
 import com.example.obd.data.TripRecordEntity
 import com.example.obd.data.VehicleProfileEntity
 import com.example.obd.model.AccelDiscipline
@@ -25,6 +27,7 @@ import com.example.obd.model.AppLanguage
 import com.example.obd.model.BatteryTestState
 import com.example.obd.model.BillingUiState
 import com.example.obd.model.BluetoothDeviceItem
+import com.example.obd.model.CatalogVehicleTemplate
 import com.example.obd.model.CloudSyncState
 import com.example.obd.model.CockpitDialTheme
 import com.example.obd.model.DataloggerState
@@ -106,7 +109,10 @@ data class ObdUiState(
     val batteryTestState: BatteryTestState = BatteryTestState(),
     val photoAnalysisState: PhotoAnalysisState = PhotoAnalysisState.Idle,
     val aiVehicleSuggestionState: AiVehicleSuggestionState = AiVehicleSuggestionState.Idle,
-    val terminalEntries: List<TerminalEntry> = emptyList()
+    val terminalEntries: List<TerminalEntry> = emptyList(),
+    val fuelTrimHealth: FuelTrimHealthSummary = FuelTrimHealthSummary(),
+    val telemetrySnapshots: List<TelemetrySnapshotEntity> = emptyList(),
+    val isProbingCustomPids: Boolean = false
 ) {
     val activeVehicleProfile: VehicleProfileEntity?
         get() = vehicleProfiles.find { it.id == settings.activeVehicleProfileId } ?: vehicleProfiles.firstOrNull()
@@ -167,12 +173,19 @@ private data class AdvancedBundle(
     val terminalEntries: List<TerminalEntry>
 )
 
+private data class InsightsBundle(
+    val fuelTrimHealth: FuelTrimHealthSummary,
+    val telemetrySnapshots: List<TelemetrySnapshotEntity>,
+    val isProbingCustomPids: Boolean
+)
+
 private data class ExtrasBundle(
     val dataloggerState: DataloggerState,
     val gpsSpeedState: GpsSpeedState,
     val cloudSyncState: CloudSyncState,
     val billingUiState: BillingUiState,
-    val advanced: AdvancedBundle
+    val advanced: AdvancedBundle,
+    val insights: InsightsBundle
 )
 
 class ObdViewModel(application: Application) : AndroidViewModel(application) {
@@ -272,14 +285,30 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
         AdvancedBundle(prePurchase, battery, photo, suggestion, terminal)
     }
 
+    private val insightsFlow = combine(
+        repository.fuelTrimHealth,
+        repository.telemetrySnapshots,
+        repository.isProbingCustomPids
+    ) { trim, snaps, probing ->
+        InsightsBundle(trim, snaps, probing)
+    }
+
     private val extrasFlow = combine(
         repository.dataloggerState,
         repository.gpsSpeedState,
         repository.cloudSyncState,
         billingManager.state,
-        advancedFlow
-    ) { logger, gps, cloud, billing, advanced ->
-        ExtrasBundle(logger, gps, cloud, billing, advanced)
+        advancedFlow,
+        insightsFlow
+    ) { values ->
+        ExtrasBundle(
+            dataloggerState = values[0] as DataloggerState,
+            gpsSpeedState = values[1] as GpsSpeedState,
+            cloudSyncState = values[2] as CloudSyncState,
+            billingUiState = values[3] as BillingUiState,
+            advanced = values[4] as AdvancedBundle,
+            insights = values[5] as InsightsBundle
+        )
     }
 
     private val uiFiltersFlow = combine(
@@ -360,7 +389,10 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
             batteryTestState = extras.advanced.batteryTestState,
             photoAnalysisState = extras.advanced.photoAnalysisState,
             aiVehicleSuggestionState = extras.advanced.aiVehicleSuggestionState,
-            terminalEntries = extras.advanced.terminalEntries
+            terminalEntries = extras.advanced.terminalEntries,
+            fuelTrimHealth = extras.insights.fuelTrimHealth,
+            telemetrySnapshots = extras.insights.telemetrySnapshots,
+            isProbingCustomPids = extras.insights.isProbingCustomPids
         )
     }.stateIn(
         scope = viewModelScope,
@@ -894,7 +926,8 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
         criticalHigh: Float? = null,
         warningLow: Float? = null,
         criticalLow: Float? = null,
-        alertsEnabled: Boolean = true
+        alertsEnabled: Boolean = true,
+        bindToActiveVehicle: Boolean = true
     ) {
         repository.addCustomPid(
             name = name,
@@ -910,7 +943,8 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
             criticalHigh = criticalHigh,
             warningLow = warningLow,
             criticalLow = criticalLow,
-            alertsEnabled = alertsEnabled
+            alertsEnabled = alertsEnabled,
+            bindToActiveVehicle = bindToActiveVehicle
         )
     }
 
@@ -925,11 +959,51 @@ class ObdViewModel(application: Application) : AndroidViewModel(application) {
         repository.deleteCustomPid(id)
     }
 
-    fun importTorqueCsv(csvText: String, onComplete: (Int) -> Unit) {
+    fun importTorqueCsv(csvText: String, bindToActiveVehicle: Boolean = true, onComplete: (Int) -> Unit) {
         viewModelScope.launch {
-            val count = repository.importTorqueCsv(csvText)
+            val count = repository.importTorqueCsv(csvText, bindToActiveVehicle)
             onComplete(count)
         }
+    }
+
+    fun probeVehicleCustomPids() {
+        repository.probeVehicleCustomPids()
+    }
+
+    fun clearTelemetrySnapshots() {
+        repository.clearTelemetrySnapshots()
+    }
+
+    fun applyOnboardingSetup(
+        language: AppLanguage,
+        customVehicleName: String,
+        vin: String?,
+        template: CatalogVehicleTemplate?,
+        displacementLiters: Float,
+        fuelType: FuelType,
+        redlineRpm: Int,
+        curbWeightKg: Int,
+        importRecommendedOemPids: Boolean
+    ) {
+        repository.applyOnboardingSetup(
+            language = language,
+            customVehicleName = customVehicleName,
+            vin = vin,
+            template = template,
+            displacementLiters = displacementLiters,
+            fuelType = fuelType,
+            redlineRpm = redlineRpm,
+            curbWeightKg = curbWeightKg,
+            importRecommendedOemPids = importRecommendedOemPids
+        )
+    }
+
+    fun skipOnboardingWizard() {
+        repository.skipOnboardingWizard()
+    }
+
+    fun reopenOnboardingWizard() {
+        repository.reopenOnboardingWizard()
     }
 
     fun buildErrorReportText(): String = repository.buildErrorReportText()

@@ -102,6 +102,18 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
+        <!-- Quick Settings Tile for 1-tap adapter connection -->
+        <service
+            android:name=".obd.ObdQuickConnectTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_car_gauges"
+            android:label="@string/qs_tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

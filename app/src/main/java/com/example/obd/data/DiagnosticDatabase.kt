@@ -47,7 +47,9 @@ data class CustomPidEntity(
     val criticalHigh: Float? = null,
     val warningLow: Float? = null,
     val criticalLow: Float? = null,
-    val alertsEnabled: Boolean = true
+    val alertsEnabled: Boolean = true,
+    val vehicleProfileId: Long? = null,
+    @ColumnInfo(defaultValue = "UNKNOWN") val probeStatus: String = "UNKNOWN"
 ) {
     val sensorId: String
         get() = "CUSTOM_$id"
@@ -128,7 +130,8 @@ data class TripRecordEntity(
     @ColumnInfo(defaultValue = "100") val ecoScore: Int = 100,
     @ColumnInfo(defaultValue = "0.0") val peakHorsepower: Float = 0f,
     @ColumnInfo(defaultValue = "0") val harshEventsCount: Int = 0,
-    @ColumnInfo(defaultValue = "0") val coldRevSec: Long = 0L
+    @ColumnInfo(defaultValue = "0") val coldRevSec: Long = 0L,
+    @ColumnInfo(defaultValue = "") val telemetryCurveCsv: String = ""
 )
 
 @Entity(tableName = "acceleration_runs")
@@ -143,6 +146,23 @@ data class AccelerationRunEntity(
     @ColumnInfo(defaultValue = "0.0") val peakHorsepower: Float = 0f,
     @ColumnInfo(defaultValue = "0.0") val peakTorqueNm: Float = 0f,
     @ColumnInfo(defaultValue = "") val curveCsv: String = ""
+)
+
+@Entity(tableName = "telemetry_snapshots")
+data class TelemetrySnapshotEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val timestampMs: Long,
+    val triggerType: String,
+    val dtcSummary: String,
+    val rpm: Float? = null,
+    val speedKmh: Float? = null,
+    val coolantTempC: Float? = null,
+    val engineLoadPct: Float? = null,
+    val batteryVoltage: Float? = null,
+    val stftPct: Float? = null,
+    val ltftPct: Float? = null,
+    val intakeMapKpa: Float? = null,
+    val vehicleName: String = ""
 )
 
 @Dao
@@ -264,6 +284,18 @@ interface AccelerationRunDao {
     suspend fun clearAll()
 }
 
+@Dao
+interface TelemetrySnapshotDao {
+    @Query("SELECT * FROM telemetry_snapshots ORDER BY timestampMs DESC LIMIT 30")
+    fun observeRecentSnapshots(): Flow<List<TelemetrySnapshotEntity>>
+
+    @Insert
+    suspend fun insert(snapshot: TelemetrySnapshotEntity): Long
+
+    @Query("DELETE FROM telemetry_snapshots")
+    suspend fun clearAll()
+}
+
 @Database(
     entities = [
         DiagnosticScanEntity::class,
@@ -271,9 +303,10 @@ interface AccelerationRunDao {
         VehicleProfileEntity::class,
         TripRecordEntity::class,
         AccelerationRunEntity::class,
-        MaintenanceItemEntity::class
+        MaintenanceItemEntity::class,
+        TelemetrySnapshotEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class DiagnosticDatabase : RoomDatabase() {
@@ -283,6 +316,7 @@ abstract class DiagnosticDatabase : RoomDatabase() {
     abstract fun tripRecordDao(): TripRecordDao
     abstract fun accelerationRunDao(): AccelerationRunDao
     abstract fun maintenanceDao(): MaintenanceDao
+    abstract fun telemetrySnapshotDao(): TelemetrySnapshotDao
 
     companion object {
         @Volatile
@@ -385,6 +419,33 @@ abstract class DiagnosticDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE custom_pids ADD COLUMN vehicleProfileId INTEGER")
+                db.execSQL("ALTER TABLE custom_pids ADD COLUMN probeStatus TEXT NOT NULL DEFAULT 'UNKNOWN'")
+                db.execSQL("ALTER TABLE trip_records ADD COLUMN telemetryCurveCsv TEXT NOT NULL DEFAULT ''")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS telemetry_snapshots (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        timestampMs INTEGER NOT NULL,
+                        triggerType TEXT NOT NULL,
+                        dtcSummary TEXT NOT NULL,
+                        rpm REAL,
+                        speedKmh REAL,
+                        coolantTempC REAL,
+                        engineLoadPct REAL,
+                        batteryVoltage REAL,
+                        stftPct REAL,
+                        ltftPct REAL,
+                        intakeMapKpa REAL,
+                        vehicleName TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): DiagnosticDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -392,7 +453,7 @@ abstract class DiagnosticDatabase : RoomDatabase() {
                     DiagnosticDatabase::class.java,
                     "obd_diagnostics.db"
                 )
-                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .fallbackToDestructiveMigration(true)
                     .build()
                     .also { INSTANCE = it }

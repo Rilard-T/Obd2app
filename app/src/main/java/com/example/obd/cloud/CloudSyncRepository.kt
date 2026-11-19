@@ -144,17 +144,27 @@ class CloudSyncRepository(
 
             val localPids = customPidDao.observeCustomPids().first()
             for (pid in localPids) {
-                val docId = sanitizeDocId("pid_${pid.modeAndPid}_${pid.header}_${stableHashHex(pid.equation)}")
-                val writeMap = pid.toCloudWriteMap(uid, remotePidCreatedAt[docId])
+                val resolvedKey = pid.vehicleProfileId?.let { vId ->
+                    refreshedLocalVehicles.find { it.id == vId }?.syncVehicleKey
+                }
+                val docId = sanitizeDocId(
+                    "pid_${resolvedKey ?: "all"}_${pid.modeAndPid}_${pid.header}_${stableHashHex(pid.equation)}"
+                )
+                val writeMap = pid.toCloudWriteMap(uid, resolvedKey, remotePidCreatedAt[docId])
                 pidsCol.document(docId).set(writeMap).awaitResult()
                 syncedCount++
             }
 
-            val localPidKeys = localPids.map { "${it.modeAndPid}|${it.equation}" }.toHashSet()
+            val localPidKeys = localPids.map {
+                "${it.modeAndPid}|${it.equation}|${it.vehicleProfileId ?: 0L}"
+            }.toHashSet()
             for (remotePid in remotePids) {
-                val key = "${remotePid.modeAndPid}|${remotePid.equation}"
+                val targetVehicleId = remotePid.vehicleKey?.let { vKey ->
+                    refreshedLocalVehicles.find { it.syncVehicleKey.equals(vKey, ignoreCase = true) }?.id
+                }
+                val key = "${remotePid.modeAndPid}|${remotePid.equation}|${targetVehicleId ?: 0L}"
                 if (key !in localPidKeys) {
-                    customPidDao.insert(remotePid.toEntity())
+                    customPidDao.insert(remotePid.toEntity(vehicleProfileId = targetVehicleId))
                     localPidKeys.add(key)
                     syncedCount++
                 }

@@ -22,14 +22,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.automirrored.outlined.ShowChart
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.DirectionsCar
-import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.DirectionsCar
-import androidx.compose.material.icons.outlined.ShowChart
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -81,6 +81,7 @@ import com.example.ui.ObdViewModel
 import com.example.ui.components.AndroidAutoPreviewDialog
 import com.example.ui.components.GarageManagerDialog
 import com.example.ui.components.HudOverlayDialog
+import com.example.ui.components.OnboardingWizardDialog
 import com.example.ui.components.ProUpgradeDialog
 import com.example.ui.components.SafetyDisclaimerDialog
 import com.example.ui.components.VoiceAssistantDialog
@@ -274,6 +275,31 @@ fun ObdAutoRootApp(
                     showSafetyManualDialog = false
                 }
             )
+        } else if (uiState.settingsLoaded && !uiState.settings.hasCompletedOnboardingWizard) {
+            OnboardingWizardDialog(
+                initialLanguage = uiState.settings.appLanguage,
+                isEnglish = uiState.settings.isEnglish,
+                aiVehicleSuggestionState = uiState.aiVehicleSuggestionState,
+                onSetLanguage = { viewModel.setAppLanguage(it) },
+                onRequestAiSuggestion = { vin, query ->
+                    requirePro { viewModel.requestAiVehicleSuggestion(vin, query) }
+                },
+                onClearAiSuggestion = { viewModel.clearAiVehicleSuggestion() },
+                onFinish = { lang, name, vin, template, disp, fuel, redline, weight, importOem ->
+                    viewModel.applyOnboardingSetup(
+                        language = lang,
+                        customVehicleName = name,
+                        vin = vin,
+                        template = template,
+                        displacementLiters = disp,
+                        fuelType = fuel,
+                        redlineRpm = redline,
+                        curbWeightKg = weight,
+                        importRecommendedOemPids = importOem
+                    )
+                },
+                onSkip = { viewModel.skipOnboardingWizard() }
+            )
         }
 
         if (showProDialog) {
@@ -298,8 +324,8 @@ fun ObdAutoRootApp(
             NavDestinationItem(
                 route = SensorsRoute,
                 label = l10nStr(R.string.nav_sensors),
-                selectedIcon = Icons.Filled.ShowChart,
-                unselectedIcon = Icons.Outlined.ShowChart,
+                selectedIcon = Icons.AutoMirrored.Filled.ShowChart,
+                unselectedIcon = Icons.AutoMirrored.Outlined.ShowChart,
                 testTag = "nav_sensors"
             ),
             NavDestinationItem(
@@ -476,7 +502,7 @@ fun ObdAutoRootApp(
                                 onUpdateCustomPid = { pid -> requirePro { viewModel.updateCustomPid(pid) } },
                                 onDeleteCustomPid = { id -> requirePro { viewModel.deleteCustomPid(id) } },
                                 onImportTorqueCsv = { csv, onComplete ->
-                                    requirePro { viewModel.importTorqueCsv(csv, onComplete) }
+                                    requirePro { viewModel.importTorqueCsv(csvText = csv, onComplete = onComplete) }
                                 },
                                 onTestLivePid = { modeAndPid, header, equation ->
                                     viewModel.probeCustomPid(modeAndPid, header, equation)
@@ -495,7 +521,8 @@ fun ObdAutoRootApp(
                                 },
                                 onImportOemPack = { packId, onComplete ->
                                     requirePro { viewModel.importOemPack(packId, onComplete) }
-                                }
+                                },
+                                onProbeVehicleCustomPids = { viewModel.probeVehicleCustomPids() }
                             )
                         }
                         composable<TripRoute> {
@@ -571,7 +598,8 @@ fun ObdAutoRootApp(
                                     }
                                 },
                                 onAnalyzePhoto = { uri, mode -> requirePro { viewModel.analyzePhoto(uri, mode) } },
-                                onClearPhotoAnalysis = { viewModel.clearPhotoAnalysis() }
+                                onClearPhotoAnalysis = { viewModel.clearPhotoAnalysis() },
+                                onClearSnapshots = { viewModel.clearTelemetrySnapshots() }
                             )
                         }
                         composable<ConnectionRoute> {
@@ -628,7 +656,8 @@ fun ObdAutoRootApp(
                                 onStartBatteryTest = { viewModel.startBatteryTest() },
                                 onCancelBatteryTest = { viewModel.cancelBatteryTest() },
                                 onSendTerminalCommand = { cmd -> requirePro { viewModel.sendRawElmCommand(cmd) } },
-                                onClearTerminal = { viewModel.clearTerminal() }
+                                onClearTerminal = { viewModel.clearTerminal() },
+                                onOpenSetupWizard = { viewModel.reopenOnboardingWizard() }
                             )
                         }
                     }

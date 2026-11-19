@@ -69,7 +69,8 @@ data class ObdUserSettings(
     val fuelCalibrationFactor: Float = 1.0f,
     val speedCalibrationFactor: Float = 1.0f,
     val fastSlowPollingEnabled: Boolean = true,
-    val autoConnectOnBtCar: Boolean = true
+    val autoConnectOnBtCar: Boolean = true,
+    val hasCompletedOnboardingWizard: Boolean = false
 ) {
     val activePreset: CockpitPreset
         get() = cockpitPresets.find { it.id == activePresetId } ?: cockpitPresets.first()
@@ -188,6 +189,7 @@ class SettingsDataStore(private val context: Context) {
         val SPEED_CALIBRATION_FACTOR = floatPreferencesKey("speed_calibration_factor")
         val FAST_SLOW_POLLING_ENABLED = booleanPreferencesKey("fast_slow_polling_enabled")
         val AUTO_CONNECT_ON_BT_CAR = booleanPreferencesKey("auto_connect_on_bt_car")
+        val HAS_COMPLETED_ONBOARDING_WIZARD = booleanPreferencesKey("has_completed_onboarding_wizard")
     }
 
     val settingsFlow: Flow<ObdUserSettings> = context.obdSettingsDataStore.data.map { prefs ->
@@ -266,7 +268,8 @@ class SettingsDataStore(private val context: Context) {
             fuelCalibrationFactor = (prefs[Keys.FUEL_CALIBRATION_FACTOR] ?: 1.0f).coerceIn(0.70f, 1.35f),
             speedCalibrationFactor = (prefs[Keys.SPEED_CALIBRATION_FACTOR] ?: 1.0f).coerceIn(0.85f, 1.15f),
             fastSlowPollingEnabled = prefs[Keys.FAST_SLOW_POLLING_ENABLED] ?: true,
-            autoConnectOnBtCar = prefs[Keys.AUTO_CONNECT_ON_BT_CAR] ?: true
+            autoConnectOnBtCar = prefs[Keys.AUTO_CONNECT_ON_BT_CAR] ?: true,
+            hasCompletedOnboardingWizard = prefs[Keys.HAS_COMPLETED_ONBOARDING_WIZARD] ?: false
         )
     }
 
@@ -675,6 +678,12 @@ class SettingsDataStore(private val context: Context) {
     suspend fun setAutoConnectOnBtCar(enabled: Boolean) {
         context.obdSettingsDataStore.edit { prefs ->
             prefs[Keys.AUTO_CONNECT_ON_BT_CAR] = enabled
+        }
+    }
+
+    suspend fun setOnboardingWizardCompleted(completed: Boolean) {
+        context.obdSettingsDataStore.edit { prefs ->
+            prefs[Keys.HAS_COMPLETED_ONBOARDING_WIZARD] = completed
         }
     }
 

@@ -46,6 +46,7 @@ class ObdApplication : Application() {
             maintenanceDao = diagnosticDatabase.maintenanceDao(),
             tripRecordDao = diagnosticDatabase.tripRecordDao(),
             accelerationRunDao = diagnosticDatabase.accelerationRunDao(),
+            telemetrySnapshotDao = diagnosticDatabase.telemetrySnapshotDao(),
             bluetoothScanner = scanner,
             sessionLogger = sessionLogger
         )

@@ -333,11 +333,46 @@ private fun VehicleProfileEditorDialog(
 
                 OutlinedTextField(
                     value = vin,
-                    onValueChange = { vin = it.uppercase().take(17) },
+                    onValueChange = { raw ->
+                        vin = raw.uppercase()
+                            .filter { it.isLetterOrDigit() || it == '-' }
+                            .take(24)
+                    },
                     label = { Text(l10nStr(R.string.garage_vin_label)) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("garage_vin_input")
                 )
+
+                val frameMatch = remember(vin) {
+                    com.example.obd.model.VehicleCatalog.detectFromIdentifier(vin)
+                }
+                if (frameMatch != null && frameMatch.isFrameNumber && frameMatch.suggestedName != null) {
+                    OutlinedButton(
+                        onClick = {
+                            name = frameMatch.suggestedName.take(28)
+                            frameMatch.displacementLiters?.let { dispText = it.toString() }
+                            frameMatch.fuelType?.let { fuelType = it }
+                            frameMatch.templateId?.let { id ->
+                                com.example.obd.model.VehicleCatalog.findById(id)?.let { tmpl ->
+                                    redlineText = tmpl.redlineRpm.toString()
+                                    shiftText = tmpl.shiftLightRpm.toString()
+                                    curbWeightText = tmpl.curbWeightKg.toString()
+                                }
+                            }
+                        },
+                        border = BorderStroke(1.dp, NominalEmerald.copy(alpha = 0.7f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("garage_frame_autofill_button")
+                    ) {
+                        Text(
+                            text = l10nStr(R.string.garage_frame_autofill_btn, frameMatch.suggestedName),
+                            color = NominalEmerald
+                        )
+                    }
+                }
 
                 if (!connectedVin.isNullOrBlank() && vin != connectedVin) {
                     TextButton(onClick = { vin = connectedVin }) {

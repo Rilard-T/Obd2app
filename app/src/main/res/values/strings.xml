@@ -361,7 +361,7 @@
     <string name="garage_add_btn">Добавить авто</string>
     <string name="garage_bind_vin_btn">Привязать текущий VIN</string>
     <string name="garage_name_label">Название / модель</string>
-    <string name="garage_vin_label">VIN-номер (необязательно)</string>
+    <string name="garage_vin_label">VIN / Номер кузова (необязательно)</string>
     <string name="garage_disp_label">Объём двигателя (л)</string>
     <string name="garage_fuel_type_label">Тип топлива</string>
     <string name="garage_redline_label">Отсечка (об/мин)</string>
@@ -562,7 +562,8 @@
     <string name="vision_apply_receipt_btn">Применить цену (%1$.2f ₽/л)</string>
     <string name="vision_apply_invoice_btn">Добавить в историю ТО</string>
     <string name="garage_curb_weight_label">Снаряжённая масса (кг, для дино-расчёта)</string>
-    <string name="garage_ai_autofill_btn">AI-подбор по VIN / модели</string>
+    <string name="garage_ai_autofill_btn">AI-подбор по VIN / Кузову / модели</string>
+    <string name="garage_frame_autofill_btn">Подставить по кузову: %1$s</string>
     <string name="garage_ai_loading">AI подбирает параметры авто и регламент ТО…</string>
     <string name="garage_ai_apply_btn">Заполнить профиль + ТО + OEM PID</string>
 
@@ -581,4 +582,71 @@
     <string name="terminal_input_hint">Команда (напр. ATZ, ATI, ATRV, 0100, 03)</string>
     <string name="terminal_send_btn">Отпр.</string>
     <string name="terminal_clear_btn">Очистить</string>
+
+    <!-- Quick Settings Tile -->
+    <string name="qs_tile_label">OBD2 Связь</string>
+    <string name="qs_tile_connected">OBD2 Онлайн</string>
+
+    <!-- Section Sub-Tabs (Menu Decluttering) -->
+    <string name="subtab_sensors_live">Датчики</string>
+    <string name="subtab_sensors_charts">Графики</string>
+    <string name="subtab_sensors_pids">OEM / PID</string>
+    <string name="subtab_diag_codes">Коды ЭБУ</string>
+    <string name="subtab_diag_ai">AI и осмотр</string>
+    <string name="subtab_diag_health">Смесь и логи</string>
+    <string name="subtab_trip_live">Поездка</string>
+    <string name="subtab_trip_dyno">Дино и 0–100</string>
+    <string name="subtab_trip_history">ТО и архив</string>
+    <string name="subtab_conn_adapter">Адаптер</string>
+    <string name="subtab_conn_cockpit">Экран / Тесты</string>
+    <string name="subtab_conn_settings">Облако и опции</string>
+
+    <!-- Smart PID Probe & Per-Car Binding -->
+    <string name="probe_pids_btn">Авто-проверка PID авто</string>
+    <string name="probe_pids_running">Проверка PID в ЭБУ…</string>
+    <string name="probe_status_supported">OK</string>
+    <string name="probe_status_unsupported">Нет в ЭБУ</string>
+    <string name="probe_status_unknown">Не проверен</string>
+    <string name="pid_bound_car_fmt">Авто: %1$s</string>
+    <string name="pid_global_label">Для всех авто</string>
+
+    <!-- Fuel Trim Health (STFT + LTFT) -->
+    <string name="trim_card_title">Здоровье топливной смеси (STFT + LTFT)</string>
+    <string name="trim_stft_label">STFT (быстр.)</string>
+    <string name="trim_ltft_label">LTFT (долг.)</string>
+    <string name="trim_total_label">Суммарно</string>
+
+    <!-- Auto Telemetry Snapshots -->
+    <string name="snap_card_title">Авто-снимки телеметрии (DTC / Тревоги)</string>
+    <string name="snap_empty">Снимки появятся автоматически при обнаружении DTC-ошибки или критическом оповещении.</string>
+    <string name="snap_trigger_dtc">Скан DTC</string>
+    <string name="snap_trigger_alert">Тревога</string>
+
+    <!-- Trip Telemetry Curve -->
+    <string name="trip_curve_btn">График</string>
+    <string name="trip_curve_title">Кривая поездки: %1$s</string>
+    <string name="trip_curve_legend">Бирюзовый: Скорость (км/ч) • Янтарный: Обороты (RPM)</string>
+    <string name="trip_curve_no_data">Недостаточно точек для графика</string>
+
+    <!-- First-Run Setup Wizard -->
+    <string name="wizard_step_fmt">Шаг %1$d из 3</string>
+    <string name="wizard_skip_btn">Пропустить</string>
+    <string name="wizard_back_btn">Назад</string>
+    <string name="wizard_next_btn">Далее</string>
+    <string name="wizard_finish_btn">Сохранить и начать</string>
+    <string name="wizard_step1_title">Добро пожаловать в OBD2 Авто</string>
+    <string name="wizard_step1_desc">Выберите язык интерфейса. На следующем шаге вы сможете выбрать марку авто и автоматически привязать OEM PID и регламент ТО.</string>
+    <string name="wizard_step2_title">Выбор автомобиля и двигателя</string>
+    <string name="wizard_step2_vin_label">VIN или номер кузова (например, ZVW30-1234567)</string>
+    <string name="wizard_vin_detected_fmt">По VIN определена марка: %1$s</string>
+    <string name="wizard_frame_detected_fmt">По номеру кузова: %1$s • %2$s</string>
+    <string name="wizard_brand_label">Марка / группа</string>
+    <string name="wizard_model_label">Модель и мотор</string>
+    <string name="wizard_car_name_label">Название профиля в гараже</string>
+    <string name="wizard_step3_title">Итоги настройки</string>
+    <string name="wizard_import_oem_switch">Привязать OEM PID-пакет (%1$d шт.) и базовый регламент ТО</string>
+    <string name="wizard_summary_hint">Все параметры можно изменить позже в «Гараже» или на вкладке «OEM / PID».</string>
+    <string name="settings_setup_wizard_title">Мастер настройки автомобиля</string>
+    <string name="settings_setup_wizard_desc">Повторно выбрать марку, модель, VIN / кузов и привязать OEM PID.</string>
+    <string name="settings_setup_wizard_btn">Запустить мастер</string>
 </resources>

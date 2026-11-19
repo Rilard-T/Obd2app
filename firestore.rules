@@ -62,6 +62,7 @@ service cloud.firestore {
 
     function isValidCustomPid(data) {
       return data.userId is string && data.userId == request.auth.uid &&
+        (!('vehicleKey' in data) || (data.vehicleKey is string && data.vehicleKey.size() >= 1 && data.vehicleKey.size() <= 128)) &&
         data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
         data.shortName is string && data.shortName.size() >= 1 && data.shortName.size() <= 30 &&
         data.modeAndPid is string && data.modeAndPid.size() >= 2 && data.modeAndPid.size() <= 16 &&
@@ -164,7 +165,7 @@ service cloud.firestore {
             'createdAt', 'updatedAt'
           ]) &&
           incoming().keys().hasOnly([
-            'userId', 'name', 'shortName', 'modeAndPid', 'header', 'equation',
+            'userId', 'vehicleKey', 'name', 'shortName', 'modeAndPid', 'header', 'equation',
             'unit', 'minValue', 'maxValue', 'decimals', 'enabled',
             'warningHigh', 'criticalHigh', 'warningLow', 'criticalLow',
             'alertsEnabled', 'createdAt', 'updatedAt'
@@ -175,7 +176,7 @@ service cloud.firestore {
           incoming().userId == existing().userId &&
           incoming().createdAt == existing().createdAt &&
           incoming().diff(existing()).affectedKeys().hasOnly([
-            'name', 'shortName', 'modeAndPid', 'header', 'equation', 'unit',
+            'vehicleKey', 'name', 'shortName', 'modeAndPid', 'header', 'equation', 'unit',
             'minValue', 'maxValue', 'decimals', 'enabled',
             'warningHigh', 'criticalHigh', 'warningLow', 'criticalLow',
             'alertsEnabled', 'updatedAt'

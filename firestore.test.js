@@ -179,6 +179,7 @@ test("Maintenance, CustomPid, and TripSummary enforce exact schema and owner iso
   await assertSucceeds(
     pidRef.set({
       userId: ALICE_UID,
+      vehicleKey: "WVWZZZ1KZ8W123456",
       name: "DSG Oil Temp",
       shortName: "DSG Oil",
       modeAndPid: "221E1C",
@@ -190,6 +191,25 @@ test("Maintenance, CustomPid, and TripSummary enforce exact schema and owner iso
       decimals: 1,
       enabled: true,
       warningHigh: 115.0,
+      alertsEnabled: true,
+      createdAt: now,
+      updatedAt: now,
+    })
+  );
+  await assertFails(
+    aliceDb.collection("users").doc(ALICE_UID).collection("customPids").doc("pid_bad_key").set({
+      userId: ALICE_UID,
+      vehicleKey: "",
+      name: "Bad PID",
+      shortName: "Bad",
+      modeAndPid: "221E1C",
+      header: "7E1",
+      equation: "A",
+      unit: "°C",
+      minValue: 0.0,
+      maxValue: 100.0,
+      decimals: 1,
+      enabled: true,
       alertsEnabled: true,
       createdAt: now,
       updatedAt: now,

@@ -5,11 +5,6 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -33,16 +28,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.BluetoothSearching
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Bluetooth
-import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.BugReport
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Download
@@ -57,7 +53,6 @@ import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Usb
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.Button
@@ -84,34 +79,42 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.R
-import com.example.obd.model.CockpitDialTheme
 import com.example.obd.i18n.l10nContext
 import com.example.obd.i18n.l10nStr
 import com.example.obd.model.AppLanguage
 import com.example.obd.model.BluetoothDeviceItem
 import com.example.obd.model.CloudSyncStatus
+import com.example.obd.model.CockpitDialTheme
 import com.example.obd.model.ObdConnectionState
 import com.example.obd.model.TtsVoiceOption
 import com.example.ui.ObdUiState
 import com.example.ui.components.BatteryTestDialog
+import com.example.ui.components.CockpitLayoutConfiguratorSection
 import com.example.ui.components.Elm327TerminalDialog
+import com.example.ui.components.SectionSubTabs
 import com.example.ui.theme.CarbonObsidian
 import com.example.ui.theme.CockpitBorder
 import com.example.ui.theme.CockpitSurface
@@ -182,6 +185,7 @@ fun ConnectionScreen(
     onCancelBatteryTest: () -> Unit = {},
     onSendTerminalCommand: (String) -> Unit = {},
     onClearTerminal: () -> Unit = {},
+    onOpenSetupWizard: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -189,6 +193,7 @@ fun ConnectionScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val isEng = uiState.settings.isEnglish
     val numLocale = if (isEng) Locale.US else Locale.forLanguageTag("ru-RU")
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var showVoicePickerDialog by remember { mutableStateOf(false) }
     var showBatteryTestDialog by remember { mutableStateOf(false) }
     var showTerminalDialog by remember { mutableStateOf(false) }
@@ -282,9 +287,7 @@ fun ConnectionScreen(
         TtsVoicePickerDialog(
             voices = uiState.availableTtsVoices,
             selectedVoiceName = uiState.settings.ttsVoiceName,
-            onSelectVoice = { name ->
-                onSetTtsVoiceName(name)
-            },
+            onSelectVoice = { onSetTtsVoiceName(it) },
             onRefreshVoices = onPreloadTtsVoices,
             onTestVoice = onTriggerTestAlert,
             onDismiss = { showVoicePickerDialog = false }
@@ -311,1492 +314,1239 @@ fun ConnectionScreen(
         )
     }
 
-    LazyColumn(
+    Column(
         modifier = modifier
             .fillMaxSize()
-            .testTag("connection_screen"),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .testTag("connection_screen")
     ) {
-        // Android Auto Hero Banner Card
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onOpenAndroidAutoPreview)
-                    .testTag("connection_aa_preview_card"),
-                shape = MaterialTheme.shapes.large,
-                colors = CardDefaults.cardColors(containerColor = CockpitSurface),
-                border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.4f))
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(165.dp)
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.img_cockpit_banner),
-                        contentDescription = l10nStr(R.string.cd_aa_banner),
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(
-                                        CarbonObsidian.copy(alpha = 0.25f),
-                                        CarbonObsidian.copy(alpha = 0.92f)
-                                    )
-                                )
-                            )
-                    )
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+        SectionSubTabs(
+            tabs = listOf(
+                l10nStr(R.string.subtab_conn_adapter),
+                l10nStr(R.string.subtab_conn_cockpit),
+                l10nStr(R.string.subtab_conn_settings)
+            ),
+            selectedIndex = selectedTab,
+            onSelect = { selectedTab = it },
+            testTagPrefix = "conn",
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Active connection banner (always visible)
+            if (uiState.connectionState.isActiveTelemetry || uiState.connectionState is ObdConnectionState.Connecting) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                        colors = CardDefaults.cardColors(containerColor = CockpitSurfaceElevated),
+                        border = BorderStroke(1.dp, NominalEmerald.copy(alpha = 0.5f))
                     ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                val title = when (val s = uiState.connectionState) {
+                                    is ObdConnectionState.Connected -> l10nStr(R.string.banner_connected_title, s.deviceName)
+                                    is ObdConnectionState.Simulation -> l10nStr(R.string.conn_sim_active)
+                                    is ObdConnectionState.Connecting -> l10nStr(R.string.banner_connecting_title, s.deviceName)
+                                    else -> ""
+                                }
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                val sub = when (val s = uiState.connectionState) {
+                                    is ObdConnectionState.Connected -> "${s.protocol} • ${s.transport.label}"
+                                    is ObdConnectionState.Simulation -> l10nStr(R.string.conn_sim_sub)
+                                    is ObdConnectionState.Connecting -> s.step
+                                    else -> ""
+                                }
+                                Text(
+                                    text = sub,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextSecondary
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            OutlinedButton(
+                                onClick = onDisconnect,
+                                modifier = Modifier.testTag("disconnect_obd_button"),
+                                border = BorderStroke(1.dp, TelemetryCyan)
+                            ) {
+                                Icon(Icons.Filled.LinkOff, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(l10nStr(R.string.action_disconnect), color = TelemetryCyan)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Connection Error card (always visible when in error state)
+            val connError = uiState.connectionState as? ObdConnectionState.Error
+            if (connError != null) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                        colors = CardDefaults.cardColors(containerColor = RedlineCrimson.copy(alpha = 0.12f)),
+                        border = BorderStroke(1.dp, RedlineCrimson.copy(alpha = 0.6f))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = l10nStr(R.string.conn_error_header, connError.deviceName ?: "ELM327"),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = RedlineCrimson
+                            )
+                            Text(
+                                text = connError.message,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            OutlinedButton(
+                                onClick = onOpenErrorLogs,
+                                border = BorderStroke(1.dp, RedlineCrimson.copy(alpha = 0.7f)),
+                                modifier = Modifier.testTag("connection_open_logs_button")
+                            ) {
+                                Icon(Icons.Filled.BugReport, contentDescription = null, tint = RedlineCrimson, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(l10nStr(R.string.btn_open_logs_report), color = RedlineCrimson)
+                            }
+                        }
+                    }
+                }
+            }
+
+            when (selectedTab) {
+                0 -> {
+                    // Runtime Bluetooth permission check
+                    if (!uiState.hasBluetoothPermissions) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.medium,
+                                colors = CardDefaults.cardColors(containerColor = MotorsportAmber.copy(alpha = 0.12f)),
+                                border = BorderStroke(1.dp, MotorsportAmber.copy(alpha = 0.6f))
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Text(text = l10nStr(R.string.bt_perm_title), style = MaterialTheme.typography.titleMedium, color = MotorsportAmber)
+                                    Text(text = l10nStr(R.string.bt_perm_desc), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                                    Button(
+                                        onClick = { permissionLauncher.launch(requiredPermissions) },
+                                        modifier = Modifier.testTag("request_bt_permission_button"),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MotorsportAmber)
+                                    ) {
+                                        Text(l10nStr(R.string.bt_perm_btn), color = CarbonObsidian)
+                                    }
+                                }
+                            }
+                        }
+                    } else if (!uiState.isBluetoothEnabled) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.medium,
+                                colors = CardDefaults.cardColors(containerColor = MotorsportAmber.copy(alpha = 0.12f)),
+                                border = BorderStroke(1.dp, MotorsportAmber.copy(alpha = 0.6f))
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Text(text = l10nStr(R.string.bt_disabled_title), style = MaterialTheme.typography.titleMedium, color = MotorsportAmber)
+                                    Text(text = l10nStr(R.string.bt_disabled_desc), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                                    Button(
+                                        onClick = {
+                                            runCatching {
+                                                enableBtLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+                                            }.onFailure {
+                                                runCatching { context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
+                                            }
+                                        },
+                                        modifier = Modifier.testTag("enable_bt_button"),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MotorsportAmber)
+                                    ) {
+                                        Text(l10nStr(R.string.bt_enable_btn), color = CarbonObsidian)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Bluetooth OBD2 Adapter Controls
+                    item {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Filled.DirectionsCar,
-                                    contentDescription = null,
-                                    tint = TelemetryCyan,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = l10nStr(R.string.aa_active_title),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = TelemetryCyan
-                                )
-                            }
                             Text(
-                                text = l10nStr(R.string.aa_show_screen),
-                                style = MaterialTheme.typography.labelMedium,
+                                text = l10nStr(R.string.bt_adapters_header),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                FilterChip(
+                                    selected = uiState.showAllBtDevices,
+                                    onClick = onToggleShowAllBt,
+                                    label = { Text(l10nStr(R.string.bt_all_chip)) },
+                                    modifier = Modifier.testTag("show_all_bt_chip")
+                                )
+                                IconButton(
+                                    onClick = onRefreshDevices,
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .testTag("refresh_bt_button")
+                                ) {
+                                    Icon(Icons.Filled.Refresh, contentDescription = l10nStr(R.string.cd_refresh_bt), tint = TelemetryCyan)
+                                }
+                            }
+                        }
+                    }
+
+                    // BLE Scan + Simulation buttons
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    if (!uiState.hasBluetoothPermissions) {
+                                        permissionLauncher.launch(requiredPermissions)
+                                    } else if (uiState.isScanningBle) {
+                                        onStopBleScan()
+                                    } else {
+                                        onStartBleScan()
+                                    }
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("scan_ble_button"),
+                                colors = ButtonDefaults.buttonColors(containerColor = TelemetryCyan)
+                            ) {
+                                if (uiState.isScanningBle) {
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = CarbonObsidian)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(l10nStr(R.string.btn_stop_scan), color = CarbonObsidian)
+                                } else {
+                                    Icon(Icons.AutoMirrored.Filled.BluetoothSearching, contentDescription = null, tint = CarbonObsidian, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(l10nStr(R.string.btn_scan_elm), color = CarbonObsidian)
+                                }
+                            }
+
+                            OutlinedButton(
+                                onClick = onStartSimulation,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("start_simulation_button"),
+                                border = BorderStroke(1.dp, MotorsportAmber)
+                            ) {
+                                Icon(Icons.Filled.Science, contentDescription = null, tint = MotorsportAmber, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(l10nStr(R.string.action_sim_mode), color = MotorsportAmber)
+                            }
+                        }
+                    }
+
+                    val discoveredOnly = bleVisible.filter { d -> pairedVisible.none { it.address == d.address } }
+
+                    if (pairedVisible.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = l10nStr(R.string.bt_paired_header, pairedVisible.size),
+                                style = MaterialTheme.typography.labelLarge,
                                 color = TelemetryCyan
                             )
                         }
-                        Text(
-                            text = l10nStr(R.string.aa_banner_desc),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        items(pairedVisible, key = { "paired_${it.address}" }) { device ->
+                            DeviceRowCard(
+                                device = device,
+                                isConnected = (uiState.connectionState as? ObdConnectionState.Connected)?.address == device.address,
+                                onClick = { onConnectDevice(device) }
+                            )
+                        }
                     }
-                }
-            }
-        }
 
-        // Active connection / Simulation control
-        if (uiState.connectionState.isActiveTelemetry || uiState.connectionState is ObdConnectionState.Connecting) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium,
-                    colors = CardDefaults.cardColors(containerColor = CockpitSurfaceElevated),
-                    border = BorderStroke(1.dp, NominalEmerald.copy(alpha = 0.5f))
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            val title = when (val s = uiState.connectionState) {
-                                is ObdConnectionState.Connected -> l10nStr(R.string.banner_connected_title, s.deviceName)
-                                is ObdConnectionState.Simulation -> l10nStr(R.string.conn_sim_active)
-                                is ObdConnectionState.Connecting -> l10nStr(R.string.banner_connecting_title, s.deviceName)
-                                else -> ""
-                            }
+                    if (discoveredOnly.isNotEmpty()) {
+                        item {
                             Text(
-                                text = title,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            val sub = when (val s = uiState.connectionState) {
-                                is ObdConnectionState.Connected -> "${s.protocol} • ${s.transport.label}"
-                                is ObdConnectionState.Simulation -> l10nStr(R.string.conn_sim_sub)
-                                is ObdConnectionState.Connecting -> s.step
-                                else -> ""
-                            }
-                            Text(
-                                text = sub,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary
+                                text = l10nStr(R.string.bt_discovered_header, discoveredOnly.size),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = TelemetryCyan
                             )
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        OutlinedButton(
-                            onClick = onDisconnect,
-                            modifier = Modifier.testTag("disconnect_obd_button"),
-                            border = BorderStroke(1.dp, TelemetryCyan)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.LinkOff,
-                                contentDescription = null,
-                                tint = TelemetryCyan,
-                                modifier = Modifier.size(18.dp)
+                        items(discoveredOnly, key = { "disc_${it.address}" }) { device ->
+                            DeviceRowCard(
+                                device = device,
+                                isConnected = (uiState.connectionState as? ObdConnectionState.Connected)?.address == device.address,
+                                onClick = { onConnectDevice(device) }
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(l10nStr(R.string.action_disconnect), color = TelemetryCyan)
                         }
                     }
-                }
-            }
-        }
 
-        // Runtime Bluetooth permission check
-        if (!uiState.hasBluetoothPermissions) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium,
-                    colors = CardDefaults.cardColors(containerColor = MotorsportAmber.copy(alpha = 0.12f)),
-                    border = BorderStroke(1.dp, MotorsportAmber.copy(alpha = 0.6f))
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = l10nStr(R.string.bt_perm_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MotorsportAmber
-                        )
-                        Text(
-                            text = l10nStr(R.string.bt_perm_desc),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Button(
-                            onClick = { permissionLauncher.launch(requiredPermissions) },
-                            modifier = Modifier.testTag("request_bt_permission_button"),
-                            colors = ButtonDefaults.buttonColors(containerColor = MotorsportAmber)
-                        ) {
-                            Text(l10nStr(R.string.bt_perm_btn), color = CarbonObsidian)
-                        }
-                    }
-                }
-            }
-        } else if (!uiState.isBluetoothEnabled) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium,
-                    colors = CardDefaults.cardColors(containerColor = MotorsportAmber.copy(alpha = 0.12f)),
-                    border = BorderStroke(1.dp, MotorsportAmber.copy(alpha = 0.6f))
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = l10nStr(R.string.bt_disabled_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MotorsportAmber
-                        )
-                        Text(
-                            text = l10nStr(R.string.bt_disabled_desc),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Button(
-                            onClick = {
-                                runCatching {
-                                    enableBtLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
-                                }.onFailure {
-                                    runCatching {
-                                        context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+                    if (pairedVisible.isEmpty() && discoveredOnly.isEmpty()) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.medium,
+                                colors = CardDefaults.cardColors(containerColor = CockpitSurface),
+                                border = BorderStroke(1.dp, CockpitBorder)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Image(
+                                            painter = painterResource(id = R.drawable.img_obd_adapter),
+                                            contentDescription = l10nStr(R.string.cd_obd_adapter_img),
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .size(78.dp)
+                                                .clip(MaterialTheme.shapes.small)
+                                        )
+                                        Spacer(modifier = Modifier.width(14.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = if (!uiState.isBluetoothEnabled) l10nStr(R.string.bt_disabled_title)
+                                                else l10nStr(R.string.bt_none_paired_title),
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = l10nStr(R.string.bt_none_paired_desc),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = TextSecondary
+                                            )
+                                        }
+                                    }
+                                    OutlinedButton(
+                                        onClick = {
+                                            runCatching { context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("open_bt_settings_button"),
+                                        border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.6f))
+                                    ) {
+                                        Icon(Icons.Filled.Bluetooth, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(l10nStr(R.string.btn_open_bt_settings), color = TelemetryCyan)
                                     }
                                 }
-                            },
-                            modifier = Modifier.testTag("enable_bt_button"),
-                            colors = ButtonDefaults.buttonColors(containerColor = MotorsportAmber)
-                        ) {
-                            Text(l10nStr(R.string.bt_enable_btn), color = CarbonObsidian)
-                        }
-                    }
-                }
-            }
-        }
-
-        // Language Selector Card (Instant Switch RU / EN / Auto)
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("language_selector_card"),
-                shape = MaterialTheme.shapes.medium,
-                colors = CardDefaults.cardColors(containerColor = CockpitSurface),
-                border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.35f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.Language,
-                            contentDescription = null,
-                            tint = TelemetryCyan,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = l10nStr(R.string.lang_card_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    Text(
-                        text = l10nStr(R.string.lang_card_subtitle),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
-                    )
-                    val langOptions = listOf(
-                        AppLanguage.SYSTEM to l10nStr(R.string.lang_option_system),
-                        AppLanguage.RU to l10nStr(R.string.lang_option_ru),
-                        AppLanguage.EN to l10nStr(R.string.lang_option_en)
-                    )
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        langOptions.forEach { (lang, label) ->
-                            val selected = uiState.settings.appLanguage == lang
-                            FilterChip(
-                                selected = selected,
-                                onClick = { onSetAppLanguage(lang) },
-                                label = { Text(label) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = TelemetryCyan.copy(alpha = 0.22f),
-                                    selectedLabelColor = TelemetryCyan
-                                ),
-                                modifier = Modifier
-                                    .minimumInteractiveComponentSize()
-                                    .testTag("lang_chip_${lang.name}")
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Bluetooth OBD2 Adapter Controls
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = l10nStr(R.string.bt_adapters_header),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    FilterChip(
-                        selected = uiState.showAllBtDevices,
-                        onClick = onToggleShowAllBt,
-                        label = { Text(l10nStr(R.string.bt_all_chip)) },
-                        modifier = Modifier.testTag("show_all_bt_chip")
-                    )
-                    IconButton(
-                        onClick = onRefreshDevices,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .testTag("refresh_bt_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = l10nStr(R.string.cd_refresh_bt),
-                            tint = TelemetryCyan
-                        )
-                    }
-                }
-            }
-        }
-
-        // BLE Scan button
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Button(
-                    onClick = {
-                        if (!uiState.hasBluetoothPermissions) {
-                            permissionLauncher.launch(requiredPermissions)
-                        } else if (uiState.isScanningBle) {
-                            onStopBleScan()
-                        } else {
-                            onStartBleScan()
-                        }
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("scan_ble_button"),
-                    colors = ButtonDefaults.buttonColors(containerColor = TelemetryCyan)
-                ) {
-                    if (uiState.isScanningBle) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = CarbonObsidian
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(l10nStr(R.string.btn_stop_scan), color = CarbonObsidian)
-                    } else {
-                        Icon(
-                            imageVector = Icons.Filled.BluetoothSearching,
-                            contentDescription = null,
-                            tint = CarbonObsidian,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(l10nStr(R.string.btn_scan_elm), color = CarbonObsidian)
-                    }
-                }
-
-                OutlinedButton(
-                    onClick = onStartSimulation,
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("start_simulation_button"),
-                    border = BorderStroke(1.dp, MotorsportAmber)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Science,
-                        contentDescription = null,
-                        tint = MotorsportAmber,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(l10nStr(R.string.action_sim_mode), color = MotorsportAmber)
-                }
-            }
-        }
-
-        val discoveredOnly = bleVisible.filter { d -> pairedVisible.none { it.address == d.address } }
-
-        if (pairedVisible.isNotEmpty()) {
-            item {
-                Text(
-                    text = l10nStr(R.string.bt_paired_header, pairedVisible.size),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = TelemetryCyan
-                )
-            }
-            items(pairedVisible, key = { "paired_${it.address}" }) { device ->
-                DeviceRowCard(
-                    device = device,
-                    isConnected = (uiState.connectionState as? ObdConnectionState.Connected)?.address == device.address,
-                    onClick = { onConnectDevice(device) }
-                )
-            }
-        }
-
-        if (discoveredOnly.isNotEmpty()) {
-            item {
-                Text(
-                    text = l10nStr(R.string.bt_discovered_header, discoveredOnly.size),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = TelemetryCyan
-                )
-            }
-            items(discoveredOnly, key = { "disc_${it.address}" }) { device ->
-                DeviceRowCard(
-                    device = device,
-                    isConnected = (uiState.connectionState as? ObdConnectionState.Connected)?.address == device.address,
-                    onClick = { onConnectDevice(device) }
-                )
-            }
-        }
-
-        if (pairedVisible.isEmpty() && discoveredOnly.isEmpty()) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium,
-                    colors = CardDefaults.cardColors(containerColor = CockpitSurface),
-                    border = BorderStroke(1.dp, CockpitBorder)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Image(
-                                painter = painterResource(id = R.drawable.img_obd_adapter),
-                                contentDescription = l10nStr(R.string.cd_obd_adapter_img),
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(78.dp)
-                                    .clip(MaterialTheme.shapes.small)
-                            )
-                            Spacer(modifier = Modifier.width(14.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = if (!uiState.isBluetoothEnabled) {
-                                        l10nStr(R.string.bt_disabled_title)
-                                    } else {
-                                        l10nStr(R.string.bt_none_paired_title)
-                                    },
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = l10nStr(R.string.bt_none_paired_desc),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = TextSecondary
-                                )
                             }
                         }
-                        OutlinedButton(
-                            onClick = {
-                                runCatching {
-                                    context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
-                                }
-                            },
+                    }
+
+                    // Wi-Fi ELM327 TCP Adapter Card
+                    item {
+                        Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .testTag("open_bt_settings_button"),
-                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.6f))
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Bluetooth,
-                                contentDescription = null,
-                                tint = TelemetryCyan,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(l10nStr(R.string.btn_open_bt_settings), color = TelemetryCyan)
-                        }
-                    }
-                }
-            }
-        }
-
-        val connError = uiState.connectionState as? ObdConnectionState.Error
-        if (connError != null) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium,
-                    colors = CardDefaults.cardColors(containerColor = RedlineCrimson.copy(alpha = 0.12f)),
-                    border = BorderStroke(1.dp, RedlineCrimson.copy(alpha = 0.6f))
-                ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = l10nStr(R.string.conn_error_header, connError.deviceName ?: "ELM327"),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = RedlineCrimson
-                        )
-                        Text(
-                            text = connError.message,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        OutlinedButton(
-                            onClick = onOpenErrorLogs,
-                            border = BorderStroke(1.dp, RedlineCrimson.copy(alpha = 0.7f)),
-                            modifier = Modifier.testTag("connection_open_logs_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.BugReport,
-                                contentDescription = null,
-                                tint = RedlineCrimson,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(l10nStr(R.string.btn_open_logs_report), color = RedlineCrimson)
-                        }
-                    }
-                }
-            }
-        }
-
-        // Wi-Fi ELM327 TCP Adapter Card
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("wifi_obd_card"),
-                shape = MaterialTheme.shapes.medium,
-                colors = CardDefaults.cardColors(containerColor = CockpitSurface),
-                border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.35f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.Wifi,
-                            contentDescription = null,
-                            tint = TelemetryCyan,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = l10nStr(R.string.wifi_card_title),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = l10nStr(R.string.wifi_card_desc),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary
-                            )
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = wifiHostInput,
-                            onValueChange = { wifiHostInput = it },
-                            label = { Text(l10nStr(R.string.wifi_host_label)) },
-                            singleLine = true,
-                            modifier = Modifier
-                                .weight(1.7f)
-                                .testTag("wifi_host_input")
-                        )
-                        OutlinedTextField(
-                            value = wifiPortInput,
-                            onValueChange = { txt ->
-                                wifiPortInput = txt.filter { it.isDigit() }.take(5)
-                            },
-                            label = { Text(l10nStr(R.string.wifi_port_label)) },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("wifi_port_input")
-                        )
-                    }
-
-                    Button(
-                        onClick = {
-                            val host = wifiHostInput.trim().ifEmpty { "192.168.0.10" }
-                            val port = wifiPortInput.toIntOrNull()?.takeIf { it in 1..65535 } ?: 35000
-                            onConnectWifi(host, port)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("wifi_connect_button"),
-                        colors = ButtonDefaults.buttonColors(containerColor = TelemetryCyan)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Wifi,
-                            contentDescription = null,
-                            tint = CarbonObsidian,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(l10nStr(R.string.wifi_connect_btn), color = CarbonObsidian)
-                    }
-                }
-            }
-        }
-
-        // Android Auto Display Mode & Gauge Layout Configurator
-        item {
-            com.example.ui.components.CockpitLayoutConfiguratorSection(
-                uiState = uiState,
-                onSelectDisplayMode = onSelectDisplayMode,
-                onSelectPreset = onSelectPreset,
-                onRenamePreset = onRenamePreset,
-                onSetDialSlot = onSetDialSlot,
-                onSetStripSlot = onSetStripSlot,
-                onResetFullscreenDefaults = onResetFullscreenDefaults,
-                onSelectDialTheme = onSelectDialTheme,
-                onSetShiftLightEnabled = onSetShiftLightEnabled,
-                onSetShiftLightRpm = onSetShiftLightRpm,
-                onToggleGridSensor = onToggleAndroidAutoSensor,
-                onOpenPreview = onOpenAndroidAutoPreview
-            )
-        }
-
-        // Auto-connect, Auto-reconnect, Voice (TTS), and Android Auto Popup Alerts Card
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
-                colors = CardDefaults.cardColors(containerColor = CockpitSurface),
-                border = BorderStroke(1.dp, CockpitBorder)
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.NotificationsActive,
-                            contentDescription = null,
-                            tint = MotorsportAmber,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = l10nStr(R.string.alerts_card_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    SettingsSwitchRow(
-                        title = l10nStr(R.string.auto_connect_title),
-                        subtitle = l10nStr(R.string.auto_connect_sub),
-                        checked = uiState.settings.autoConnectOnLaunch,
-                        onCheckedChange = onSetAutoConnect,
-                        tag = "auto_connect_switch"
-                    )
-                    SettingsSwitchRow(
-                        title = l10nStr(R.string.auto_reconnect_title),
-                        subtitle = l10nStr(R.string.auto_reconnect_sub),
-                        checked = uiState.settings.autoReconnectOnDrop,
-                        onCheckedChange = onSetAutoReconnect,
-                        tag = "auto_reconnect_switch"
-                    )
-                    SettingsSwitchRow(
-                        title = l10nStr(R.string.settings_bt_car_autoconnect),
-                        subtitle = l10nStr(R.string.settings_bt_car_autoconnect_desc),
-                        checked = uiState.settings.autoConnectOnBtCar,
-                        onCheckedChange = onSetAutoConnectBtCar,
-                        tag = "bt_car_autoconnect_switch"
-                    )
-                    SettingsSwitchRow(
-                        title = l10nStr(R.string.settings_fast_slow_polling),
-                        subtitle = l10nStr(R.string.settings_fast_slow_polling_desc),
-                        checked = uiState.settings.fastSlowPollingEnabled,
-                        onCheckedChange = onSetFastSlowPolling,
-                        tag = "fast_slow_polling_switch"
-                    )
-                    SettingsSwitchRow(
-                        title = l10nStr(R.string.voice_alerts_title),
-                        subtitle = l10nStr(R.string.voice_alerts_sub),
-                        checked = uiState.settings.voiceAlertsEnabled,
-                        onCheckedChange = onSetVoiceAlerts,
-                        tag = "voice_alerts_switch"
-                    )
-
-                    AnimatedVisibility(visible = uiState.settings.voiceAlertsEnabled) {
-                        Surface(
-                            shape = MaterialTheme.shapes.small,
-                            color = CockpitSurfaceElevated,
-                            border = BorderStroke(1.dp, CockpitBorder),
-                            modifier = Modifier.fillMaxWidth()
+                                .testTag("wifi_obd_card"),
+                            shape = MaterialTheme.shapes.medium,
+                            colors = CardDefaults.cardColors(containerColor = CockpitSurface),
+                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.35f))
                         ) {
                             Column(
-                                modifier = Modifier.padding(12.dp),
+                                modifier = Modifier.padding(14.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                // Volume slider
-                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Filled.Wifi, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(text = l10nStr(R.string.wifi_card_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                                        Text(text = l10nStr(R.string.wifi_card_desc), style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                                    }
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    OutlinedTextField(
+                                        value = wifiHostInput,
+                                        onValueChange = { wifiHostInput = it },
+                                        label = { Text(l10nStr(R.string.wifi_host_label)) },
+                                        singleLine = true,
+                                        modifier = Modifier
+                                            .weight(1.7f)
+                                            .testTag("wifi_host_input")
+                                    )
+                                    OutlinedTextField(
+                                        value = wifiPortInput,
+                                        onValueChange = { txt -> wifiPortInput = txt.filter { it.isDigit() }.take(5) },
+                                        label = { Text(l10nStr(R.string.wifi_port_label)) },
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("wifi_port_input")
+                                    )
+                                }
+                                Button(
+                                    onClick = {
+                                        val host = wifiHostInput.trim().ifEmpty { "192.168.0.10" }
+                                        val port = wifiPortInput.toIntOrNull()?.takeIf { it in 1..65535 } ?: 35000
+                                        onConnectWifi(host, port)
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("wifi_connect_button"),
+                                    colors = ButtonDefaults.buttonColors(containerColor = TelemetryCyan)
+                                ) {
+                                    Icon(Icons.Filled.Wifi, contentDescription = null, tint = CarbonObsidian, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(l10nStr(R.string.wifi_connect_btn), color = CarbonObsidian)
+                                }
+                            }
+                        }
+                    }
+
+                    // USB OTG Serial Adapter Card
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("usb_otg_card"),
+                            shape = MaterialTheme.shapes.medium,
+                            colors = CardDefaults.cardColors(containerColor = CockpitSurface),
+                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.4f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                        Icon(Icons.Filled.Usb, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(20.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(text = l10nStr(R.string.usb_card_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                                            Text(text = l10nStr(R.string.usb_card_desc), style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                                        }
+                                    }
+                                    IconButton(
+                                        onClick = onRefreshUsbDevices,
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .testTag("usb_refresh_button")
+                                    ) {
+                                        Icon(Icons.Filled.Refresh, contentDescription = null, tint = TelemetryCyan)
+                                    }
+                                }
+
+                                if (uiState.usbDevices.isEmpty()) {
+                                    Text(text = l10nStr(R.string.usb_none), style = MaterialTheme.typography.bodyMedium, color = TextMuted)
+                                } else {
+                                    uiState.usbDevices.forEach { usb ->
+                                        Surface(
+                                            shape = MaterialTheme.shapes.small,
+                                            color = CockpitSurfaceElevated,
+                                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.45f)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(10.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(text = usb.productName, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                                                    Text(
+                                                        text = "${usb.chipFamily} • VID:${usb.vendorId.toString(16)} PID:${usb.productId.toString(16)}",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = TextSecondary
+                                                    )
+                                                }
+                                                if (usb.hasPermission) {
+                                                    Button(
+                                                        onClick = { onConnectUsbDevice(usb.deviceId) },
+                                                        colors = ButtonDefaults.buttonColors(containerColor = TelemetryCyan),
+                                                        modifier = Modifier.testTag("usb_connect_${usb.deviceId}")
+                                                    ) {
+                                                        Text(l10nStr(R.string.action_connect), color = CarbonObsidian)
+                                                    }
+                                                } else {
+                                                    OutlinedButton(
+                                                        onClick = { onRequestUsbPermission(usb.deviceId) },
+                                                        border = BorderStroke(1.dp, MotorsportAmber.copy(alpha = 0.7f)),
+                                                        modifier = Modifier.testTag("usb_grant_${usb.deviceId}")
+                                                    ) {
+                                                        Text(l10nStr(R.string.usb_grant_btn), color = MotorsportAmber)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                1 -> {
+                    // Android Auto Hero Banner Card
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = onOpenAndroidAutoPreview)
+                                .testTag("connection_aa_preview_card"),
+                            shape = MaterialTheme.shapes.large,
+                            colors = CardDefaults.cardColors(containerColor = CockpitSurface),
+                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.4f))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(165.dp)
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.img_cockpit_banner),
+                                    contentDescription = l10nStr(R.string.cd_aa_banner),
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(CarbonObsidian.copy(alpha = 0.25f), CarbonObsidian.copy(alpha = 0.92f))
+                                            )
+                                        )
+                                )
+                                Column(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomStart)
+                                        .padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Filled.VolumeUp,
-                                                contentDescription = null,
-                                                tint = TelemetryCyan,
-                                                modifier = Modifier.size(18.dp)
-                                            )
+                                            Icon(Icons.Filled.DirectionsCar, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(20.dp))
                                             Spacer(modifier = Modifier.width(6.dp))
+                                            Text(text = l10nStr(R.string.aa_active_title), style = MaterialTheme.typography.titleMedium, color = TelemetryCyan)
+                                        }
+                                        Text(text = l10nStr(R.string.aa_show_screen), style = MaterialTheme.typography.labelMedium, color = TelemetryCyan)
+                                    }
+                                    Text(text = l10nStr(R.string.aa_banner_desc), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                                }
+                            }
+                        }
+                    }
+
+                    // Android Auto Display Mode & Gauge Layout Configurator
+                    item {
+                        CockpitLayoutConfiguratorSection(
+                            uiState = uiState,
+                            onSelectDisplayMode = onSelectDisplayMode,
+                            onSelectPreset = onSelectPreset,
+                            onRenamePreset = onRenamePreset,
+                            onSetDialSlot = onSetDialSlot,
+                            onSetStripSlot = onSetStripSlot,
+                            onResetFullscreenDefaults = onResetFullscreenDefaults,
+                            onSelectDialTheme = onSelectDialTheme,
+                            onSetShiftLightEnabled = onSetShiftLightEnabled,
+                            onSetShiftLightRpm = onSetShiftLightRpm,
+                            onToggleGridSensor = onToggleAndroidAutoSensor,
+                            onOpenPreview = onOpenAndroidAutoPreview
+                        )
+                    }
+
+                    // ELM327 Adapter Speed & Clone Benchmark + Battery Test + Terminal Card
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.medium,
+                            colors = CardDefaults.cardColors(containerColor = CockpitSurface),
+                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.4f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Filled.Speed, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(text = l10nStr(R.string.bench_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                                        Text(text = l10nStr(R.string.bench_desc), style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                                    }
+                                }
+
+                                Button(
+                                    onClick = onRunAdapterBenchmark,
+                                    enabled = uiState.connectionState.isActiveTelemetry && !uiState.isRunningBenchmark,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("run_elm_benchmark_button"),
+                                    colors = ButtonDefaults.buttonColors(containerColor = TelemetryCyan)
+                                ) {
+                                    if (uiState.isRunningBenchmark) {
+                                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = CarbonObsidian)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(l10nStr(R.string.bench_running), color = CarbonObsidian)
+                                    } else {
+                                        Text(
+                                            text = if (uiState.connectionState.isActiveTelemetry) l10nStr(R.string.bench_run_btn)
+                                            else l10nStr(R.string.bench_need_conn_btn),
+                                            color = CarbonObsidian
+                                        )
+                                    }
+                                }
+
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(
+                                        onClick = { showBatteryTestDialog = true },
+                                        border = BorderStroke(1.dp, NominalEmerald.copy(alpha = 0.65f)),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("open_battery_test_button")
+                                    ) {
+                                        Icon(Icons.Filled.BatteryChargingFull, contentDescription = null, tint = NominalEmerald, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(l10nStr(R.string.batt_test_btn), color = NominalEmerald)
+                                    }
+                                    OutlinedButton(
+                                        onClick = { showTerminalDialog = true },
+                                        border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.65f)),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("open_elm_terminal_button")
+                                    ) {
+                                        Icon(Icons.Filled.Terminal, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(l10nStr(R.string.terminal_btn), color = TelemetryCyan)
+                                    }
+                                }
+
+                                val bench = uiState.benchmarkResult
+                                if (bench != null) {
+                                    val isBadClone = (bench.qualityLabel.contains("клон", ignoreCase = true) &&
+                                        bench.qualityLabel.contains("Урезан", ignoreCase = true)) ||
+                                        (bench.qualityLabel.contains("Stripped", ignoreCase = true) ||
+                                            bench.qualityLabel.contains("Clone", ignoreCase = true))
+                                    val yes = l10nStr(R.string.bench_yes)
+                                    val no = l10nStr(R.string.bench_no)
+                                    val pidPrefix = if (isEng) "ECU PIDs" else "PID ЭБУ"
+
+                                    Surface(
+                                        shape = MaterialTheme.shapes.small,
+                                        color = CockpitSurfaceElevated,
+                                        border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.35f)),
+                                        modifier = Modifier.testTag("elm_benchmark_result_card")
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                             Text(
-                                                text = l10nStr(R.string.tts_volume_label),
+                                                text = l10nStr(R.string.bench_verdict, bench.qualityLabel),
+                                                style = MaterialTheme.typography.titleMedium,
+                                                color = if (isBadClone) RedlineCrimson else NominalEmerald
+                                            )
+                                            Text(
+                                                text = l10nStr(R.string.bench_chip, bench.adapterVersion, bench.protocolName),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = TelemetryCyan
+                                            )
+                                            Text(
+                                                text = l10nStr(
+                                                    R.string.bench_latency,
+                                                    bench.avgLatencyMs,
+                                                    bench.minLatencyMs,
+                                                    bench.maxLatencyMs,
+                                                    String.format(numLocale, "%.1f", bench.maxPollingHz)
+                                                ),
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
-                                        }
-                                        Text(
-                                            text = "${(uiState.settings.ttsVolume * 100).roundToInt()}%",
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = TelemetryCyan
-                                        )
-                                    }
-                                    Slider(
-                                        value = uiState.settings.ttsVolume,
-                                        onValueChange = onSetTtsVolume,
-                                        valueRange = 0.1f..1.0f,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = TelemetryCyan,
-                                            activeTrackColor = TelemetryCyan,
-                                            inactiveTrackColor = CockpitBorder
-                                        ),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .testTag("tts_volume_slider")
-                                    )
-                                }
-
-                                HorizontalDivider(color = CockpitBorder)
-
-                                // Speech rate quick chips
-                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text(
-                                        text = l10nStr(R.string.tts_rate_label),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    val rateOptions = listOf(
-                                        0.85f to l10nStr(R.string.tts_rate_slow),
-                                        1.0f to l10nStr(R.string.tts_rate_normal),
-                                        1.2f to l10nStr(R.string.tts_rate_fast),
-                                        1.4f to "1.4x"
-                                    )
-                                    FlowRow(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        rateOptions.forEach { (rateValue, rateLabel) ->
-                                            val isSelected = abs(uiState.settings.ttsSpeechRate - rateValue) < 0.05f
-                                            FilterChip(
-                                                selected = isSelected,
-                                                onClick = { onSetTtsSpeechRate(rateValue) },
-                                                label = { Text(rateLabel) },
-                                                colors = FilterChipDefaults.filterChipColors(
-                                                    selectedContainerColor = TelemetryCyan.copy(alpha = 0.2f),
-                                                    selectedLabelColor = TelemetryCyan
-                                                ),
-                                                modifier = Modifier.testTag("tts_rate_chip_${(rateValue * 100).roundToInt()}")
-                                            )
-                                        }
-                                    }
-                                }
-
-                                HorizontalDivider(color = CockpitBorder)
-
-                                // Voice picker button row
-                                val activeVoiceLabel = uiState.availableTtsVoices
-                                    .find { it.name == uiState.settings.ttsVoiceName }
-                                    ?.label
-                                    ?: l10nStr(R.string.tts_voice_system_default)
-
-                                Surface(
-                                    onClick = {
-                                        onPreloadTtsVoices()
-                                        showVoicePickerDialog = true
-                                    },
-                                    shape = MaterialTheme.shapes.small,
-                                    color = CockpitSurface,
-                                    border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.45f)),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .minimumInteractiveComponentSize()
-                                        .testTag("tts_voice_picker_button")
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Filled.RecordVoiceOver,
-                                                contentDescription = null,
-                                                tint = TelemetryCyan,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Column {
-                                                Text(
-                                                    text = l10nStr(R.string.tts_voice_picker_label),
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    color = TextSecondary
-                                                )
-                                                Text(
-                                                    text = activeVoiceLabel,
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
+                                            val atFlags = buildString {
+                                                append("ATAT2: ${if (bench.supportsAdaptiveTiming) yes else no}")
+                                                append(" • ")
+                                                append("ATST: ${if (bench.supportsTimeoutCmd) yes else no}")
+                                                bench.supportedMode01Count?.let { count -> append(" • $pidPrefix: $count") }
                                             }
+                                            Text(text = atFlags, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                                            Text(text = bench.summary, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                                         }
-                                        Text(
-                                            text = l10nStr(R.string.tts_voice_choose),
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = TelemetryCyan
-                                        )
                                     }
                                 }
                             }
                         }
                     }
-
-                    SettingsSwitchRow(
-                        title = l10nStr(R.string.aa_popup_alerts_title),
-                        subtitle = l10nStr(R.string.aa_popup_alerts_sub),
-                        checked = uiState.settings.aaPopupAlertsEnabled,
-                        onCheckedChange = onSetAaPopupAlerts,
-                        tag = "aa_popup_alerts_switch"
-                    )
-
-                    OutlinedButton(
-                        onClick = onTriggerTestAlert,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("test_alert_button"),
-                        border = BorderStroke(1.dp, MotorsportAmber.copy(alpha = 0.65f))
-                    ) {
-                        Text(l10nStr(R.string.btn_test_alert), color = MotorsportAmber)
-                    }
                 }
-            }
-        }
 
-        // ELM327 Adapter Speed & Clone Benchmark Card
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
-                colors = CardDefaults.cardColors(containerColor = CockpitSurface),
-                border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.4f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.Speed,
-                            contentDescription = null,
-                            tint = TelemetryCyan,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = l10nStr(R.string.bench_title),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = l10nStr(R.string.bench_desc),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary
-                            )
-                        }
-                    }
-
-                    Button(
-                        onClick = onRunAdapterBenchmark,
-                        enabled = uiState.connectionState.isActiveTelemetry && !uiState.isRunningBenchmark,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("run_elm_benchmark_button"),
-                        colors = ButtonDefaults.buttonColors(containerColor = TelemetryCyan)
-                    ) {
-                        if (uiState.isRunningBenchmark) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
-                                color = CarbonObsidian
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(l10nStr(R.string.bench_running), color = CarbonObsidian)
-                        } else {
-                            Text(
-                                text = if (uiState.connectionState.isActiveTelemetry) {
-                                    l10nStr(R.string.bench_run_btn)
-                                } else {
-                                    l10nStr(R.string.bench_need_conn_btn)
-                                },
-                                color = CarbonObsidian
-                            )
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = { showBatteryTestDialog = true },
-                            border = BorderStroke(1.dp, NominalEmerald.copy(alpha = 0.65f)),
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("open_battery_test_button")
+                else -> {
+                    // Setup Wizard Card
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.medium,
+                            colors = CardDefaults.cardColors(containerColor = CockpitSurfaceElevated),
+                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.45f))
                         ) {
-                            Icon(Icons.Filled.BatteryChargingFull, contentDescription = null, tint = NominalEmerald, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(l10nStr(R.string.batt_test_btn), color = NominalEmerald)
-                        }
-                        OutlinedButton(
-                            onClick = { showTerminalDialog = true },
-                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.65f)),
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("open_elm_terminal_button")
-                        ) {
-                            Icon(Icons.Filled.Terminal, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(l10nStr(R.string.terminal_btn), color = TelemetryCyan)
-                        }
-                    }
-
-                    val bench = uiState.benchmarkResult
-                    if (bench != null) {
-                        val isBadClone = (bench.qualityLabel.contains("клон", ignoreCase = true) &&
-                            bench.qualityLabel.contains("Урезан", ignoreCase = true)) ||
-                            (bench.qualityLabel.contains("Stripped", ignoreCase = true) ||
-                                bench.qualityLabel.contains("Clone", ignoreCase = true))
-                        val yes = l10nStr(R.string.bench_yes)
-                        val no = l10nStr(R.string.bench_no)
-                        val pidPrefix = if (isEng) "ECU PIDs" else "PID ЭБУ"
-
-                        Surface(
-                            shape = MaterialTheme.shapes.small,
-                            color = CockpitSurfaceElevated,
-                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.35f)),
-                            modifier = Modifier.testTag("elm_benchmark_result_card")
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = l10nStr(R.string.bench_verdict, bench.qualityLabel),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = if (isBadClone) RedlineCrimson else NominalEmerald
-                                )
-                                Text(
-                                    text = l10nStr(R.string.bench_chip, bench.adapterVersion, bench.protocolName),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = TelemetryCyan
-                                )
-                                Text(
-                                    text = l10nStr(
-                                        R.string.bench_latency,
-                                        bench.avgLatencyMs,
-                                        bench.minLatencyMs,
-                                        bench.maxLatencyMs,
-                                        String.format(numLocale, "%.1f", bench.maxPollingHz)
-                                    ),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                val atFlags = buildString {
-                                    append("ATAT2: ${if (bench.supportsAdaptiveTiming) yes else no}")
-                                    append(" • ")
-                                    append("ATST: ${if (bench.supportsTimeoutCmd) yes else no}")
-                                    bench.supportedMode01Count?.let { count ->
-                                        append(" • $pidPrefix: $count")
-                                    }
-                                }
-                                Text(
-                                    text = atFlags,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = TextSecondary
-                                )
-                                Text(
-                                    text = bench.summary,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = TextSecondary
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Garage & JSON Backup Card
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("garage_backup_card"),
-                shape = MaterialTheme.shapes.medium,
-                colors = CardDefaults.cardColors(containerColor = CockpitSurface),
-                border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.35f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.DirectionsCar,
-                                contentDescription = null,
-                                tint = TelemetryCyan,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = l10nStr(R.string.garage_title),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = l10nStr(
-                                        R.string.garage_active_car,
-                                        uiState.activeVehicleProfile?.name ?: "—"
-                                    ),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = TextSecondary
-                                )
-                            }
-                        }
-                        OutlinedButton(
-                            onClick = onOpenGarage,
-                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.7f)),
-                            modifier = Modifier.testTag("connection_open_garage_button")
-                        ) {
-                            Text(l10nStr(R.string.garage_manage_btn), color = TelemetryCyan)
-                        }
-                    }
-
-                    HorizontalDivider(color = CockpitBorder)
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.Backup,
-                            contentDescription = null,
-                            tint = TelemetryCyan,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = l10nStr(R.string.backup_card_title),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = l10nStr(R.string.backup_card_desc),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary
-                            )
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = { exportJsonLauncher.launch("obd2_auto_backup.json") },
-                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.7f)),
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("export_json_backup_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Download,
-                                contentDescription = null,
-                                tint = TelemetryCyan,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(l10nStr(R.string.backup_export_btn), color = TelemetryCyan)
-                        }
-                        OutlinedButton(
-                            onClick = {
-                                importJsonLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
-                            },
-                            border = BorderStroke(1.dp, MotorsportAmber.copy(alpha = 0.7f)),
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("import_json_backup_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Upload,
-                                contentDescription = null,
-                                tint = MotorsportAmber,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(l10nStr(R.string.backup_import_btn), color = MotorsportAmber)
-                        }
-                    }
-
-                    val currentBackupStatus = backupStatus
-                    if (!currentBackupStatus.isNullOrBlank()) {
-                        Text(
-                            text = currentBackupStatus,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (currentBackupStatus.contains("Ошибка", ignoreCase = true) ||
-                                currentBackupStatus.contains("error", ignoreCase = true)
-                            ) {
-                                RedlineCrimson
-                            } else {
-                                NominalEmerald
-                            }
-                        )
-                    }
-                }
-            }
-        }
-
-        // USB OTG Serial Adapter Card
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("usb_otg_card"),
-                shape = MaterialTheme.shapes.medium,
-                colors = CardDefaults.cardColors(containerColor = CockpitSurface),
-                border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.4f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Icon(
-                                imageVector = Icons.Filled.Usb,
-                                contentDescription = null,
-                                tint = TelemetryCyan,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = l10nStr(R.string.usb_card_title),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = l10nStr(R.string.usb_card_desc),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = TextSecondary
-                                )
-                            }
-                        }
-                        IconButton(
-                            onClick = onRefreshUsbDevices,
-                            modifier = Modifier
-                                .size(48.dp)
-                                .testTag("usb_refresh_button")
-                        ) {
-                            Icon(Icons.Filled.Refresh, contentDescription = null, tint = TelemetryCyan)
-                        }
-                    }
-
-                    if (uiState.usbDevices.isEmpty()) {
-                        Text(
-                            text = l10nStr(R.string.usb_none),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextMuted
-                        )
-                    } else {
-                        uiState.usbDevices.forEach { usb ->
-                            Surface(
-                                shape = MaterialTheme.shapes.small,
-                                color = CockpitSurfaceElevated,
-                                border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.45f)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(22.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column {
                                         Text(
-                                            text = usb.productName,
-                                            style = MaterialTheme.typography.titleSmall,
+                                            text = l10nStr(R.string.settings_setup_wizard_title),
+                                            style = MaterialTheme.typography.titleMedium,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                         Text(
-                                            text = "${usb.chipFamily} • VID:${usb.vendorId.toString(16)} PID:${usb.productId.toString(16)}",
+                                            text = l10nStr(R.string.settings_setup_wizard_desc),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = TextSecondary
                                         )
                                     }
-                                    if (usb.hasPermission) {
-                                        Button(
-                                            onClick = { onConnectUsbDevice(usb.deviceId) },
-                                            colors = ButtonDefaults.buttonColors(containerColor = TelemetryCyan),
-                                            modifier = Modifier.testTag("usb_connect_${usb.deviceId}")
-                                        ) {
-                                            Text(l10nStr(R.string.action_connect), color = CarbonObsidian)
-                                        }
-                                    } else {
-                                        OutlinedButton(
-                                            onClick = { onRequestUsbPermission(usb.deviceId) },
-                                            border = BorderStroke(1.dp, MotorsportAmber.copy(alpha = 0.7f)),
-                                            modifier = Modifier.testTag("usb_grant_${usb.deviceId}")
-                                        ) {
-                                            Text(l10nStr(R.string.usb_grant_btn), color = MotorsportAmber)
-                                        }
+                                }
+                                OutlinedButton(
+                                    onClick = onOpenSetupWizard,
+                                    border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.7f)),
+                                    modifier = Modifier.testTag("reopen_wizard_button")
+                                ) {
+                                    Text(l10nStr(R.string.settings_setup_wizard_btn), color = TelemetryCyan)
+                                }
+                            }
+                        }
+                    }
+
+                    // Language Selector Card
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("language_selector_card"),
+                            shape = MaterialTheme.shapes.medium,
+                            colors = CardDefaults.cardColors(containerColor = CockpitSurface),
+                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.35f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Filled.Language, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(text = l10nStr(R.string.lang_card_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                                }
+                                Text(text = l10nStr(R.string.lang_card_subtitle), style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                                val langOptions = listOf(
+                                    AppLanguage.SYSTEM to l10nStr(R.string.lang_option_system),
+                                    AppLanguage.RU to l10nStr(R.string.lang_option_ru),
+                                    AppLanguage.EN to l10nStr(R.string.lang_option_en)
+                                )
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    langOptions.forEach { (lang, label) ->
+                                        val selected = uiState.settings.appLanguage == lang
+                                        FilterChip(
+                                            selected = selected,
+                                            onClick = { onSetAppLanguage(lang) },
+                                            label = { Text(label) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = TelemetryCyan.copy(alpha = 0.22f),
+                                                selectedLabelColor = TelemetryCyan
+                                            ),
+                                            modifier = Modifier
+                                                .minimumInteractiveComponentSize()
+                                                .testTag("lang_chip_${lang.name}")
+                                        )
                                     }
                                 }
                             }
                         }
                     }
-                }
-            }
-        }
 
-        // Cloud Sync (Firebase Firestore + Google Sign-In) Card
-        item {
-            val cloud = uiState.cloudSyncState
-            val syncTimeFmt = remember(isEng) { SimpleDateFormat("dd.MM HH:mm", numLocale) }
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("cloud_sync_card"),
-                shape = MaterialTheme.shapes.medium,
-                colors = CardDefaults.cardColors(containerColor = CockpitSurface),
-                border = BorderStroke(1.dp, NominalEmerald.copy(alpha = 0.45f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.CloudSync,
-                            contentDescription = null,
-                            tint = NominalEmerald,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = l10nStr(R.string.cloud_card_title),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = l10nStr(R.string.cloud_card_desc),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary
-                            )
-                        }
-                    }
-
-                    val currentUser = cloud.user
-                    if (currentUser == null) {
-                        Button(
-                            onClick = { onSignInGoogle(context) },
-                            enabled = cloud.status !is CloudSyncStatus.SigningIn,
-                            colors = ButtonDefaults.buttonColors(containerColor = TelemetryCyan),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("cloud_google_signin_button")
-                        ) {
-                            if (cloud.status is CloudSyncStatus.SigningIn) {
-                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = CarbonObsidian)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(l10nStr(R.string.cloud_signing_in), color = CarbonObsidian)
-                            } else {
-                                Icon(Icons.Filled.AccountCircle, contentDescription = null, tint = CarbonObsidian, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(l10nStr(R.string.cloud_signin_btn), color = CarbonObsidian)
-                            }
-                        }
-                    } else {
-                        Surface(
-                            shape = MaterialTheme.shapes.small,
-                            color = CockpitSurfaceElevated,
-                            border = BorderStroke(1.dp, NominalEmerald.copy(alpha = 0.45f)),
-                            modifier = Modifier.fillMaxWidth()
+                    // Auto-connect, Auto-reconnect, Voice (TTS), and Android Auto Popup Alerts Card
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.medium,
+                            colors = CardDefaults.cardColors(containerColor = CockpitSurface),
+                            border = BorderStroke(1.dp, CockpitBorder)
                         ) {
                             Column(
-                                modifier = Modifier.padding(10.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Text(
-                                    text = currentUser.displayName ?: currentUser.email ?: currentUser.uid,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Filled.NotificationsActive, contentDescription = null, tint = MotorsportAmber, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(text = l10nStr(R.string.alerts_card_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                                }
+
+                                SettingsSwitchRow(
+                                    title = l10nStr(R.string.auto_connect_title),
+                                    subtitle = l10nStr(R.string.auto_connect_sub),
+                                    checked = uiState.settings.autoConnectOnLaunch,
+                                    onCheckedChange = onSetAutoConnect,
+                                    tag = "auto_connect_switch"
                                 )
-                                currentUser.email?.let { email ->
-                                    Text(text = email, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                                SettingsSwitchRow(
+                                    title = l10nStr(R.string.auto_reconnect_title),
+                                    subtitle = l10nStr(R.string.auto_reconnect_sub),
+                                    checked = uiState.settings.autoReconnectOnDrop,
+                                    onCheckedChange = onSetAutoReconnect,
+                                    tag = "auto_reconnect_switch"
+                                )
+                                SettingsSwitchRow(
+                                    title = l10nStr(R.string.settings_bt_car_autoconnect),
+                                    subtitle = l10nStr(R.string.settings_bt_car_autoconnect_desc),
+                                    checked = uiState.settings.autoConnectOnBtCar,
+                                    onCheckedChange = onSetAutoConnectBtCar,
+                                    tag = "bt_car_autoconnect_switch"
+                                )
+                                SettingsSwitchRow(
+                                    title = l10nStr(R.string.settings_fast_slow_polling),
+                                    subtitle = l10nStr(R.string.settings_fast_slow_polling_desc),
+                                    checked = uiState.settings.fastSlowPollingEnabled,
+                                    onCheckedChange = onSetFastSlowPolling,
+                                    tag = "fast_slow_polling_switch"
+                                )
+                                SettingsSwitchRow(
+                                    title = l10nStr(R.string.voice_alerts_title),
+                                    subtitle = l10nStr(R.string.voice_alerts_sub),
+                                    checked = uiState.settings.voiceAlertsEnabled,
+                                    onCheckedChange = onSetVoiceAlerts,
+                                    tag = "voice_alerts_switch"
+                                )
+
+                                AnimatedVisibility(visible = uiState.settings.voiceAlertsEnabled) {
+                                    Surface(
+                                        shape = MaterialTheme.shapes.small,
+                                        color = CockpitSurfaceElevated,
+                                        border = BorderStroke(1.dp, CockpitBorder),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(18.dp))
+                                                        Spacer(modifier = Modifier.width(6.dp))
+                                                        Text(text = l10nStr(R.string.tts_volume_label), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                                                    }
+                                                    Text(text = "${(uiState.settings.ttsVolume * 100).roundToInt()}%", style = MaterialTheme.typography.labelLarge, color = TelemetryCyan)
+                                                }
+                                                Slider(
+                                                    value = uiState.settings.ttsVolume,
+                                                    onValueChange = onSetTtsVolume,
+                                                    valueRange = 0.1f..1.0f,
+                                                    colors = SliderDefaults.colors(
+                                                        thumbColor = TelemetryCyan,
+                                                        activeTrackColor = TelemetryCyan,
+                                                        inactiveTrackColor = CockpitBorder
+                                                    ),
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .testTag("tts_volume_slider")
+                                                )
+                                            }
+
+                                            HorizontalDivider(color = CockpitBorder)
+
+                                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                Text(text = l10nStr(R.string.tts_rate_label), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                                                val rateOptions = listOf(
+                                                    0.85f to l10nStr(R.string.tts_rate_slow),
+                                                    1.0f to l10nStr(R.string.tts_rate_normal),
+                                                    1.2f to l10nStr(R.string.tts_rate_fast),
+                                                    1.4f to "1.4x"
+                                                )
+                                                FlowRow(
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    rateOptions.forEach { (rateValue, rateLabel) ->
+                                                        val isSelected = abs(uiState.settings.ttsSpeechRate - rateValue) < 0.05f
+                                                        FilterChip(
+                                                            selected = isSelected,
+                                                            onClick = { onSetTtsSpeechRate(rateValue) },
+                                                            label = { Text(rateLabel) },
+                                                            colors = FilterChipDefaults.filterChipColors(
+                                                                selectedContainerColor = TelemetryCyan.copy(alpha = 0.2f),
+                                                                selectedLabelColor = TelemetryCyan
+                                                            ),
+                                                            modifier = Modifier.testTag("tts_rate_chip_${(rateValue * 100).roundToInt()}")
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            HorizontalDivider(color = CockpitBorder)
+
+                                            val activeVoiceLabel = uiState.availableTtsVoices
+                                                .find { it.name == uiState.settings.ttsVoiceName }
+                                                ?.label
+                                                ?: l10nStr(R.string.tts_voice_system_default)
+
+                                            Surface(
+                                                onClick = {
+                                                    onPreloadTtsVoices()
+                                                    showVoicePickerDialog = true
+                                                },
+                                                shape = MaterialTheme.shapes.small,
+                                                color = CockpitSurface,
+                                                border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.45f)),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .minimumInteractiveComponentSize()
+                                                    .testTag("tts_voice_picker_button")
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                                        Icon(Icons.Filled.RecordVoiceOver, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(20.dp))
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Column {
+                                                            Text(text = l10nStr(R.string.tts_voice_picker_label), style = MaterialTheme.typography.labelMedium, color = TextSecondary)
+                                                            Text(text = activeVoiceLabel, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                                                        }
+                                                    }
+                                                    Text(text = l10nStr(R.string.tts_voice_choose), style = MaterialTheme.typography.labelLarge, color = TelemetryCyan)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                SettingsSwitchRow(
+                                    title = l10nStr(R.string.aa_popup_alerts_title),
+                                    subtitle = l10nStr(R.string.aa_popup_alerts_sub),
+                                    checked = uiState.settings.aaPopupAlertsEnabled,
+                                    onCheckedChange = onSetAaPopupAlerts,
+                                    tag = "aa_popup_alerts_switch"
+                                )
+
+                                OutlinedButton(
+                                    onClick = onTriggerTestAlert,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("test_alert_button"),
+                                    border = BorderStroke(1.dp, MotorsportAmber.copy(alpha = 0.65f))
+                                ) {
+                                    Text(l10nStr(R.string.btn_test_alert), color = MotorsportAmber)
                                 }
                             }
                         }
+                    }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    // Cloud Sync (Firebase Firestore + Google Sign-In) Card
+                    item {
+                        val cloud = uiState.cloudSyncState
+                        val syncTimeFmt = remember(isEng) { SimpleDateFormat("dd.MM HH:mm", numLocale) }
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("cloud_sync_card"),
+                            shape = MaterialTheme.shapes.medium,
+                            colors = CardDefaults.cardColors(containerColor = CockpitSurface),
+                            border = BorderStroke(1.dp, NominalEmerald.copy(alpha = 0.45f))
                         ) {
-                            Button(
-                                onClick = onSyncCloudNow,
-                                enabled = cloud.status !is CloudSyncStatus.Syncing,
-                                colors = ButtonDefaults.buttonColors(containerColor = NominalEmerald),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("cloud_sync_now_button")
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                if (cloud.status is CloudSyncStatus.Syncing) {
-                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = CarbonObsidian)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(l10nStr(R.string.cloud_syncing), color = CarbonObsidian)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Filled.CloudSync, contentDescription = null, tint = NominalEmerald, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(text = l10nStr(R.string.cloud_card_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                                        Text(text = l10nStr(R.string.cloud_card_desc), style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                                    }
+                                }
+
+                                val currentUser = cloud.user
+                                if (currentUser == null) {
+                                    Button(
+                                        onClick = { onSignInGoogle(context) },
+                                        enabled = cloud.status !is CloudSyncStatus.SigningIn,
+                                        colors = ButtonDefaults.buttonColors(containerColor = TelemetryCyan),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("cloud_google_signin_button")
+                                    ) {
+                                        if (cloud.status is CloudSyncStatus.SigningIn) {
+                                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = CarbonObsidian)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(l10nStr(R.string.cloud_signing_in), color = CarbonObsidian)
+                                        } else {
+                                            Icon(Icons.Filled.AccountCircle, contentDescription = null, tint = CarbonObsidian, modifier = Modifier.size(18.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(l10nStr(R.string.cloud_signin_btn), color = CarbonObsidian)
+                                        }
+                                    }
                                 } else {
-                                    Text(l10nStr(R.string.cloud_sync_btn), color = CarbonObsidian)
+                                    Surface(
+                                        shape = MaterialTheme.shapes.small,
+                                        color = CockpitSurfaceElevated,
+                                        border = BorderStroke(1.dp, NominalEmerald.copy(alpha = 0.45f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text(text = currentUser.displayName ?: currentUser.email ?: currentUser.uid, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                                            currentUser.email?.let { email ->
+                                                Text(text = email, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                                            }
+                                        }
+                                    }
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(
+                                            onClick = onSyncCloudNow,
+                                            enabled = cloud.status !is CloudSyncStatus.Syncing,
+                                            colors = ButtonDefaults.buttonColors(containerColor = NominalEmerald),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .testTag("cloud_sync_now_button")
+                                        ) {
+                                            if (cloud.status is CloudSyncStatus.Syncing) {
+                                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = CarbonObsidian)
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(l10nStr(R.string.cloud_syncing), color = CarbonObsidian)
+                                            } else {
+                                                Text(l10nStr(R.string.cloud_sync_btn), color = CarbonObsidian)
+                                            }
+                                        }
+                                        OutlinedButton(
+                                            onClick = onSignOutCloud,
+                                            border = BorderStroke(1.dp, RedlineCrimson.copy(alpha = 0.65f)),
+                                            modifier = Modifier.testTag("cloud_signout_button")
+                                        ) {
+                                            Text(l10nStr(R.string.cloud_signout_btn), color = RedlineCrimson)
+                                        }
+                                    }
+                                }
+
+                                when (val st = cloud.status) {
+                                    is CloudSyncStatus.Synced -> {
+                                        Text(
+                                            text = l10nStr(R.string.cloud_synced_ok, st.syncedItemsCount, syncTimeFmt.format(Date(st.lastSyncMs))),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = NominalEmerald
+                                        )
+                                    }
+                                    is CloudSyncStatus.Error -> {
+                                        Text(text = st.message, style = MaterialTheme.typography.labelMedium, color = RedlineCrimson)
+                                    }
+                                    else -> Unit
                                 }
                             }
-                            OutlinedButton(
-                                onClick = onSignOutCloud,
-                                border = BorderStroke(1.dp, RedlineCrimson.copy(alpha = 0.65f)),
-                                modifier = Modifier.testTag("cloud_signout_button")
+                        }
+                    }
+
+                    // Garage & JSON Backup Card
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("garage_backup_card"),
+                            shape = MaterialTheme.shapes.medium,
+                            colors = CardDefaults.cardColors(containerColor = CockpitSurface),
+                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.35f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Text(l10nStr(R.string.cloud_signout_btn), color = RedlineCrimson)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                        Icon(Icons.Filled.DirectionsCar, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(20.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(text = l10nStr(R.string.garage_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                                            Text(
+                                                text = l10nStr(R.string.garage_active_car, uiState.activeVehicleProfile?.name ?: "—"),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = TextSecondary
+                                            )
+                                        }
+                                    }
+                                    OutlinedButton(
+                                        onClick = onOpenGarage,
+                                        border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.7f)),
+                                        modifier = Modifier.testTag("connection_open_garage_button")
+                                    ) {
+                                        Text(l10nStr(R.string.garage_manage_btn), color = TelemetryCyan)
+                                    }
+                                }
+
+                                HorizontalDivider(color = CockpitBorder)
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Filled.Backup, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(text = l10nStr(R.string.backup_card_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+                                        Text(text = l10nStr(R.string.backup_card_desc), style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                                    }
+                                }
+
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(
+                                        onClick = { exportJsonLauncher.launch("obd2_auto_backup.json") },
+                                        border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.7f)),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("export_json_backup_button")
+                                    ) {
+                                        Icon(Icons.Filled.Download, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(l10nStr(R.string.backup_export_btn), color = TelemetryCyan)
+                                    }
+                                    OutlinedButton(
+                                        onClick = { importJsonLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
+                                        border = BorderStroke(1.dp, MotorsportAmber.copy(alpha = 0.7f)),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("import_json_backup_button")
+                                    ) {
+                                        Icon(Icons.Filled.Upload, contentDescription = null, tint = MotorsportAmber, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(l10nStr(R.string.backup_import_btn), color = MotorsportAmber)
+                                    }
+                                }
+
+                                val currentBackupStatus = backupStatus
+                                if (!currentBackupStatus.isNullOrBlank()) {
+                                    Text(
+                                        text = currentBackupStatus,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = if (currentBackupStatus.contains("Ошибка", ignoreCase = true) ||
+                                            currentBackupStatus.contains("error", ignoreCase = true)
+                                        ) RedlineCrimson else NominalEmerald
+                                    )
+                                }
                             }
                         }
                     }
 
-                    when (val st = cloud.status) {
-                        is CloudSyncStatus.Synced -> {
-                            Text(
-                                text = l10nStr(
-                                    R.string.cloud_synced_ok,
-                                    st.syncedItemsCount,
-                                    syncTimeFmt.format(Date(st.lastSyncMs))
-                                ),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = NominalEmerald
-                            )
-                        }
-                        is CloudSyncStatus.Error -> {
-                            Text(
-                                text = st.message,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = RedlineCrimson
-                            )
-                        }
-                        else -> Unit
-                    }
-                }
-            }
-        }
-
-        // Distribution & Safety/Privacy Policy Card (Google Play vs GitHub Direct)
-        item {
-            val isGithub = com.example.BuildConfig.IS_GITHUB_BUILD
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("play_readiness_card"),
-                shape = MaterialTheme.shapes.medium,
-                colors = CardDefaults.cardColors(containerColor = CockpitSurface),
-                border = BorderStroke(
-                    1.dp,
-                    if (isGithub) TelemetryCyan.copy(alpha = 0.45f) else MotorsportAmber.copy(alpha = 0.45f)
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.WorkspacePremium,
-                            contentDescription = null,
-                            tint = if (isGithub) NominalEmerald else MotorsportAmber,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = if (isGithub) {
-                                    l10nStr(R.string.pro_github_card_title)
-                                } else {
-                                    l10nStr(R.string.pro_card_title)
-                                },
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = when {
-                                    isGithub -> l10nStr(R.string.pro_github_card_desc)
-                                    uiState.hasProAccess -> l10nStr(R.string.pro_entitled_badge)
-                                    else -> l10nStr(R.string.pro_card_desc)
-                                },
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (uiState.hasProAccess) NominalEmerald else TextSecondary
-                            )
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = onOpenProDialog,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isGithub) NominalEmerald else MotorsportAmber
-                            ),
+                    // Distribution & Safety/Privacy Policy Card
+                    item {
+                        val isGithub = com.example.BuildConfig.IS_GITHUB_BUILD
+                        Card(
                             modifier = Modifier
-                                .weight(1f)
-                                .testTag("open_pro_dialog_button")
+                                .fillMaxWidth()
+                                .testTag("play_readiness_card"),
+                            shape = MaterialTheme.shapes.medium,
+                            colors = CardDefaults.cardColors(containerColor = CockpitSurface),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isGithub) TelemetryCyan.copy(alpha = 0.45f) else MotorsportAmber.copy(alpha = 0.45f)
+                            )
                         ) {
-                            Icon(
-                                imageVector = Icons.Filled.WorkspacePremium,
-                                contentDescription = null,
-                                tint = CarbonObsidian,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = if (isGithub) {
-                                    l10nStr(R.string.pro_github_open_btn)
-                                } else {
-                                    l10nStr(R.string.pro_open_btn)
-                                },
-                                color = CarbonObsidian
-                            )
-                        }
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Filled.WorkspacePremium,
+                                        contentDescription = null,
+                                        tint = if (isGithub) NominalEmerald else MotorsportAmber,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = if (isGithub) l10nStr(R.string.pro_github_card_title) else l10nStr(R.string.pro_card_title),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = when {
+                                                isGithub -> l10nStr(R.string.pro_github_card_desc)
+                                                uiState.hasProAccess -> l10nStr(R.string.pro_entitled_badge)
+                                                else -> l10nStr(R.string.pro_card_desc)
+                                            },
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = if (uiState.hasProAccess) NominalEmerald else TextSecondary
+                                        )
+                                    }
+                                }
 
-                        OutlinedButton(
-                            onClick = onOpenSafetyDialog,
-                            border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.65f)),
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("open_safety_dialog_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Shield,
-                                contentDescription = null,
-                                tint = TelemetryCyan,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(l10nStr(R.string.safety_privacy_btn), color = TelemetryCyan)
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(
+                                        onClick = onOpenProDialog,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (isGithub) NominalEmerald else MotorsportAmber
+                                        ),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("open_pro_dialog_button")
+                                    ) {
+                                        Icon(Icons.Filled.WorkspacePremium, contentDescription = null, tint = CarbonObsidian, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (isGithub) l10nStr(R.string.pro_github_open_btn) else l10nStr(R.string.pro_open_btn),
+                                            color = CarbonObsidian
+                                        )
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = onOpenSafetyDialog,
+                                        border = BorderStroke(1.dp, TelemetryCyan.copy(alpha = 0.65f)),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .testTag("open_safety_dialog_button")
+                                    ) {
+                                        Icon(Icons.Filled.Shield, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(l10nStr(R.string.safety_privacy_btn), color = TelemetryCyan)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1823,16 +1573,8 @@ private fun SettingsSwitchRow(
                 .weight(1f)
                 .padding(end = 10.dp)
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.labelSmall,
-                color = TextSecondary
-            )
+            Text(text = title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+            Text(text = subtitle, style = MaterialTheme.typography.labelSmall, color = TextSecondary)
         }
         Switch(
             checked = checked,
@@ -1885,16 +1627,9 @@ private fun DeviceRowCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = device.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Text(text = device.name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                     if (device.isLikelyObd) {
-                        Surface(
-                            shape = MaterialTheme.shapes.small,
-                            color = TelemetryCyan.copy(alpha = 0.16f)
-                        ) {
+                        Surface(shape = MaterialTheme.shapes.small, color = TelemetryCyan.copy(alpha = 0.16f)) {
                             Text(
                                 text = "OBD2",
                                 style = MaterialTheme.typography.labelSmall,
@@ -1904,11 +1639,7 @@ private fun DeviceRowCard(
                         }
                     }
                 }
-                Text(
-                    text = "${device.transport.label} • ${device.address}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextMuted
-                )
+                Text(text = "${device.transport.label} • ${device.address}", style = MaterialTheme.typography.bodyMedium, color = TextMuted)
             }
             Text(
                 text = if (isConnected) l10nStr(R.string.bt_status_active) else l10nStr(R.string.bt_status_connect_short),
@@ -1947,18 +1678,9 @@ private fun TtsVoicePickerDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.RecordVoiceOver,
-                            contentDescription = null,
-                            tint = TelemetryCyan,
-                            modifier = Modifier.size(22.dp)
-                        )
+                        Icon(Icons.Filled.RecordVoiceOver, contentDescription = null, tint = TelemetryCyan, modifier = Modifier.size(22.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = l10nStr(R.string.tts_dialog_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        Text(text = l10nStr(R.string.tts_dialog_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                     }
                     IconButton(
                         onClick = onRefreshVoices,
@@ -1966,19 +1688,11 @@ private fun TtsVoicePickerDialog(
                             .size(48.dp)
                             .testTag("tts_refresh_voices_button")
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = l10nStr(R.string.cd_refresh_voices),
-                            tint = TelemetryCyan
-                        )
+                        Icon(Icons.Filled.Refresh, contentDescription = l10nStr(R.string.cd_refresh_voices), tint = TelemetryCyan)
                     }
                 }
 
-                Text(
-                    text = l10nStr(R.string.tts_dialog_desc),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary
-                )
+                Text(text = l10nStr(R.string.tts_dialog_desc), style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
 
                 Column(
                     modifier = Modifier
@@ -2062,10 +1776,7 @@ private fun TtsVoiceOptionRow(
         onClick = onClick,
         shape = MaterialTheme.shapes.small,
         color = if (selected) TelemetryCyan.copy(alpha = 0.14f) else CockpitSurfaceElevated,
-        border = BorderStroke(
-            1.dp,
-            if (selected) TelemetryCyan else CockpitBorder
-        ),
+        border = BorderStroke(1.dp, if (selected) TelemetryCyan else CockpitBorder),
         modifier = Modifier
             .fillMaxWidth()
             .minimumInteractiveComponentSize()
@@ -2080,25 +1791,13 @@ private fun TtsVoiceOptionRow(
             RadioButton(
                 selected = selected,
                 onClick = onClick,
-                colors = RadioButtonDefaults.colors(
-                    selectedColor = TelemetryCyan,
-                    unselectedColor = TextSecondary
-                )
+                colors = RadioButtonDefaults.colors(selectedColor = TelemetryCyan, unselectedColor = TextSecondary)
             )
             Spacer(modifier = Modifier.width(6.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (selected) TelemetryCyan else MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextMuted
-                )
+                Text(text = label, style = MaterialTheme.typography.bodyMedium, color = if (selected) TelemetryCyan else MaterialTheme.colorScheme.onSurface)
+                Text(text = subtitle, style = MaterialTheme.typography.labelSmall, color = TextMuted)
             }
         }
     }
 }
-

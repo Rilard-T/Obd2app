@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.util.Locale
 import kotlin.math.abs
 
 /**
@@ -40,6 +41,9 @@ class TripComputerManager {
     private var runStartMs: Long = 0L
     private var runPrevSampleMs: Long = 0L
     private var runPrevSpeedKmh: Float = 0f
+    private val tripCurvePoints = ArrayList<String>(128)
+    private var lastCurveSampleMs: Long = 0L
+    private var lastCurveSampleSpeedKmh: Float = -100f
 
     @Synchronized
     fun resetTrip() {
@@ -55,8 +59,14 @@ class TripComputerManager {
         harshEventsCount = 0
         lastHarshEventMs = 0L
         lastOverRevPenaltyMs = 0L
+        tripCurvePoints.clear()
+        lastCurveSampleMs = 0L
+        lastCurveSampleSpeedKmh = -100f
         _tripStats.value = TripStats()
     }
+
+    @Synchronized
+    fun getTripCurveCsv(): String = tripCurvePoints.joinToString("|")
 
     @Synchronized
     fun onTelemetrySample(
@@ -249,6 +259,27 @@ class TripComputerManager {
                 horsepower = instantHp ?: 0f,
                 torqueNm = instantTorque ?: 0f,
                 onAccelRunCompleted = onAccelRunCompleted
+            )
+        }
+
+        val shouldSampleCurve = tripCurvePoints.size < 120 && (
+            tripCurvePoints.isEmpty() ||
+                (timestampMs - lastCurveSampleMs) >= 12_000L ||
+                (abs(currentSpeed - lastCurveSampleSpeedKmh) >= 15f && (timestampMs - lastCurveSampleMs) >= 2_500L)
+            )
+        if (shouldSampleCurve) {
+            lastCurveSampleMs = timestampMs
+            lastCurveSampleSpeedKmh = currentSpeed
+            tripCurvePoints.add(
+                String.format(
+                    Locale.US,
+                    "%d;%.1f;%.0f;%.0f;%.1f",
+                    elapsedSec,
+                    currentSpeed,
+                    rpm ?: 0f,
+                    coolantTempC ?: 0f,
+                    instantLitersPerHour ?: 0f
+                )
             )
         }
     }

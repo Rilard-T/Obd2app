@@ -24,7 +24,8 @@ data class CustomPidBackupDto(
     val criticalHigh: Float? = null,
     val warningLow: Float? = null,
     val criticalLow: Float? = null,
-    val alertsEnabled: Boolean = true
+    val alertsEnabled: Boolean = true,
+    val vehicleName: String? = null
 )
 
 @Serializable
@@ -94,7 +95,10 @@ object SettingsBackupManager {
                     criticalHigh = it.criticalHigh,
                     warningLow = it.warningLow,
                     criticalLow = it.criticalLow,
-                    alertsEnabled = it.alertsEnabled
+                    alertsEnabled = it.alertsEnabled,
+                    vehicleName = it.vehicleProfileId?.let { vid ->
+                        profiles.find { p -> p.id == vid }?.name
+                    }
                 )
             },
             vehicleProfiles = profiles.map {

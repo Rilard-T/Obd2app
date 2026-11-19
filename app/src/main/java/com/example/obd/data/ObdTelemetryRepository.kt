@@ -17,15 +17,18 @@ import com.example.obd.ai.AiAnalysisState
 import com.example.obd.ai.AiDiagnosticAssistant
 import com.example.obd.cloud.CloudAuthManager
 import com.example.obd.cloud.CloudSyncRepository
+import com.example.obd.i18n.AppLocalization
 import com.example.obd.model.AccelDiscipline
 import com.example.obd.model.AccelTimerState
 import com.example.obd.model.AiVehicleSuggestion
 import com.example.obd.model.AiVehicleSuggestionState
+import com.example.obd.model.AlertLevel
 import com.example.obd.model.AppLanguage
 import com.example.obd.model.BatteryTestPhase
 import com.example.obd.model.BatteryTestState
 import com.example.obd.model.BluetoothDeviceItem
 import com.example.obd.model.BluetoothTransportType
+import com.example.obd.model.CatalogVehicleTemplate
 import com.example.obd.model.CloudSyncState
 import com.example.obd.model.CloudSyncStatus
 import com.example.obd.model.CockpitDialTheme
@@ -83,6 +86,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -105,6 +109,7 @@ class ObdTelemetryRepository(
     private val maintenanceDao: MaintenanceDao,
     private val tripRecordDao: TripRecordDao,
     private val accelerationRunDao: AccelerationRunDao,
+    private val telemetrySnapshotDao: TelemetrySnapshotDao,
     val bluetoothScanner: BluetoothScanner,
     val sessionLogger: ObdSessionLogger
 ) {
@@ -161,6 +166,9 @@ class ObdTelemetryRepository(
     private val _isRunningBenchmark = MutableStateFlow(false)
     val isRunningBenchmark: StateFlow<Boolean> = _isRunningBenchmark.asStateFlow()
 
+    private val _isProbingCustomPids = MutableStateFlow(false)
+    val isProbingCustomPids: StateFlow<Boolean> = _isProbingCustomPids.asStateFlow()
+
     private val _usbDevices = MutableStateFlow<List<UsbSerialDeviceItem>>(emptyList())
     val usbDevices: StateFlow<List<UsbSerialDeviceItem>> = _usbDevices.asStateFlow()
 
@@ -189,6 +197,14 @@ class ObdTelemetryRepository(
     val dataloggerState: StateFlow<DataloggerState> = datalogger.state
     val gpsSpeedState: StateFlow<GpsSpeedState> = gpsSpeedMonitor.state
     val logEntries: StateFlow<List<ObdLogEntry>> = sessionLogger.entries
+
+    val fuelTrimHealth: StateFlow<FuelTrimHealthSummary> = _readings
+        .map { FuelTrimHealthAnalyzer.analyze(it) }
+        .stateIn(
+            scope = scope,
+            started = SharingStarted.Eagerly,
+            initialValue = FuelTrimHealthSummary()
+        )
 
     val settings: StateFlow<ObdUserSettings> = settingsDataStore.settingsFlow.stateIn(
         scope = scope,
@@ -223,13 +239,19 @@ class ObdTelemetryRepository(
 
     val tripHistory = tripRecordDao.observeTrips()
     val accelerationRuns = accelerationRunDao.observeRuns()
+    val telemetrySnapshots = telemetrySnapshotDao.observeRecentSnapshots()
 
     val sensors: StateFlow<List<TelemetrySensor>> = combine(
         customPidDao.observeCustomPids(),
-        settingsDataStore.settingsFlow
-    ) { customList, userSettings ->
+        settingsDataStore.settingsFlow,
+        vehicleProfiles
+    ) { customList, userSettings, profiles ->
+        val activeId = userSettings.activeVehicleProfileId ?: profiles.firstOrNull()?.id
+        val visibleCustom = customList.filter { pid ->
+            pid.enabled && (pid.vehicleProfileId == null || activeId == null || pid.vehicleProfileId == activeId)
+        }
         val rawSensors = ObdPid.entries.map { it.toTelemetrySensor(userSettings.isEnglish) } +
-            customList.filter { it.enabled }.map { it.toTelemetrySensor() }
+            visibleCustom.map { it.toTelemetrySensor() }
         rawSensors.map { sensor -> applyAlertOverride(sensor, userSettings) }
     }.stateIn(
         scope = scope,
@@ -259,6 +281,8 @@ class ObdTelemetryRepository(
     @Volatile
     private var pendingUsbAutoConnectId: Int? = null
     private var widgetPushCounter: Int = 0
+    @Volatile
+    private var lastCriticalSnapshotMs: Long = 0L
 
     private val usbPermissionReceiver = object : BroadcastReceiver() {
         override fun onReceive(ctx: Context?, intent: Intent?) {
@@ -391,17 +415,27 @@ class ObdTelemetryRepository(
     }
 
     fun tryAutoConnect(reason: String) {
+        internalConnectLastAdapter(reason = reason, bypassPreferenceAndManualFlag = false)
+    }
+
+    fun quickConnectLastAdapter(): Boolean {
+        return internalConnectLastAdapter(reason = "QuickSettingsTile", bypassPreferenceAndManualFlag = true)
+    }
+
+    private fun internalConnectLastAdapter(reason: String, bypassPreferenceAndManualFlag: Boolean): Boolean {
         val currentConn = _connectionState.value
         val currentSettings = settings.value
-        if (currentConn.isActiveTelemetry || currentConn is ObdConnectionState.Connecting) return
-        if (userManuallyDisconnected || !currentSettings.autoConnectOnLaunch) return
+        if (currentConn.isActiveTelemetry || currentConn is ObdConnectionState.Connecting) return true
+        if (!bypassPreferenceAndManualFlag && (userManuallyDisconnected || !currentSettings.autoConnectOnLaunch)) {
+            return false
+        }
 
         if (currentSettings.lastTransport == BluetoothTransportType.USB_SERIAL) {
             refreshUsbDevices()
-            val permittedUsb = _usbDevices.value.firstOrNull { it.hasPermission } ?: return
+            val permittedUsb = _usbDevices.value.firstOrNull { it.hasPermission } ?: return false
             sessionLogger.info("AUTO_CONN", "Автоподключение USB OTG ($reason): ${permittedUsb.productName}")
             connectUsbDevice(permittedUsb.deviceId)
-            return
+            return true
         }
 
         if (currentSettings.lastTransport == BluetoothTransportType.WIFI_TCP) {
@@ -409,10 +443,10 @@ class ObdTelemetryRepository(
             val port = currentSettings.wifiPort
             sessionLogger.info("AUTO_CONN", "Автоподключение Wi-Fi ($reason) к $host:$port")
             connectWifi(host, port)
-            return
+            return true
         }
 
-        if (!bluetoothScanner.hasBluetoothPermissions() || !bluetoothScanner.isBluetoothEnabled()) return
+        if (!bluetoothScanner.hasBluetoothPermissions() || !bluetoothScanner.isBluetoothEnabled()) return false
 
         val paired = bluetoothScanner.getPairedDevices()
         val lastAddr = currentSettings.lastDeviceAddress
@@ -428,10 +462,11 @@ class ObdTelemetryRepository(
                 )
             }
             else -> paired.firstOrNull { it.isLikelyObd }
-        } ?: return
+        } ?: return false
 
         sessionLogger.info("AUTO_CONN", "Автоподключение ($reason) к ${targetDevice.name} (${targetDevice.address})")
         connectToDevice(targetDevice)
+        return true
     }
 
     fun connectWifi(host: String, port: Int) {
@@ -563,6 +598,7 @@ class ObdTelemetryRepository(
                     startForegroundService()
 
                     readDtcsInternal(transport, device.name, protocol)
+                    probeVehicleCustomPidsInternal(onlyUnknown = true)
                     attempt = 0 // Reset retry counter once healthy session runs
                     runRealPollingLoop(transport, device, protocol)
 
@@ -709,6 +745,10 @@ class ObdTelemetryRepository(
                         dtcSummary = demoCodes.joinToString(", ") { it.code },
                         batteryVoltage = _readings.value[ObdPid.CONTROL_MODULE_VOLTAGE.modeAndPid]?.value
                     )
+                )
+                saveTelemetrySnapshotInternal(
+                    triggerType = "DTC",
+                    dtcSummary = demoCodes.joinToString(", ") { it.code }
                 )
                 return@launch
             }
@@ -903,7 +943,8 @@ class ObdTelemetryRepository(
                 ecoScore = stats.ecoScore,
                 peakHorsepower = stats.peakHorsepower,
                 harshEventsCount = stats.harshEventsCount,
-                coldRevSec = stats.coldRevSeconds
+                coldRevSec = stats.coldRevSeconds,
+                telemetryCurveCsv = tripManager.getTripCurveCsv()
             )
         )
         if (markSaved && activeProfile != null && (stats.distanceKm >= 0.05f || stats.elapsedSec >= 10L)) {
@@ -1028,6 +1069,9 @@ class ObdTelemetryRepository(
 
     fun deleteVehicleProfile(profileId: Long) {
         scope.launch {
+            customPids.value
+                .filter { it.vehicleProfileId == profileId }
+                .forEach { customPidDao.deleteById(it.id) }
             maintenanceDao.deleteForVehicle(profileId)
             vehicleProfileDao.deleteById(profileId)
             val remaining = vehicleProfileDao.getAll()
@@ -1037,6 +1081,121 @@ class ObdTelemetryRepository(
                 settingsDataStore.setActiveVehicleProfileId(remaining.first().id)
             }
             pushWidgetSnapshot()
+        }
+    }
+
+    // --- Onboarding Setup Wizard ---
+
+    fun applyOnboardingSetup(
+        language: AppLanguage,
+        customVehicleName: String,
+        vin: String?,
+        template: CatalogVehicleTemplate?,
+        displacementLiters: Float,
+        fuelType: FuelType,
+        redlineRpm: Int,
+        curbWeightKg: Int,
+        importRecommendedOemPids: Boolean
+    ) {
+        scope.launch {
+            settingsDataStore.setAppLanguage(language)
+            val isEng = AppLocalization.isEnglish(language)
+            val cleanVin = vin?.trim()?.uppercase()?.ifBlank { null }
+            val resolvedName = customVehicleName.trim().ifBlank {
+                template?.let { "${it.brand.substringBefore(" /")} ${it.modelName.substringBefore(" /")}" }
+                    ?: if (isEng) "My Car" else "Мой автомобиль"
+            }
+            val resolvedRedline = redlineRpm.coerceIn(3500, 9500)
+            val resolvedShift = (template?.shiftLightRpm ?: (resolvedRedline - 500)).coerceIn(2500, resolvedRedline)
+            val resolvedPresetId = template?.preferredPresetId ?: ObdUserSettings.DEFAULT_PRESET_ID
+
+            val existing = vehicleProfileDao.getAll()
+            val canUpdateUntouchedDefault = existing.size == 1 &&
+                existing.first().vin == null &&
+                existing.first().odometerKm == 0f
+
+            val profileId = if (canUpdateUntouchedDefault) {
+                val base = existing.first()
+                val updated = base.copy(
+                    name = resolvedName,
+                    vin = cleanVin,
+                    displacementLiters = displacementLiters.coerceIn(0.6f, 8.0f),
+                    fuelType = fuelType.name,
+                    redlineRpm = resolvedRedline,
+                    shiftLightRpm = resolvedShift,
+                    preferredPresetId = resolvedPresetId,
+                    curbWeightKg = curbWeightKg.coerceIn(600, 6000)
+                )
+                vehicleProfileDao.update(updated)
+                maintenanceDao.deleteForVehicle(base.id)
+                base.id
+            } else {
+                vehicleProfileDao.insert(
+                    VehicleProfileEntity(
+                        name = resolvedName,
+                        vin = cleanVin,
+                        displacementLiters = displacementLiters.coerceIn(0.6f, 8.0f),
+                        fuelType = fuelType.name,
+                        redlineRpm = resolvedRedline,
+                        shiftLightRpm = resolvedShift,
+                        fuelPricePerLiter = 58.0f,
+                        preferredPresetId = resolvedPresetId,
+                        curbWeightKg = curbWeightKg.coerceIn(600, 6000)
+                    )
+                )
+            }
+
+            settingsDataStore.setActiveVehicleProfileId(profileId)
+            settingsDataStore.setShiftLightRpm(resolvedShift)
+            settingsDataStore.selectCockpitPreset(resolvedPresetId)
+
+            val vehicleKey = cleanVin ?: "profile_$profileId"
+            if (template != null && template.maintenanceDefaults.isNotEmpty()) {
+                val now = System.currentTimeMillis()
+                maintenanceDao.insertAll(
+                    template.maintenanceDefaults.map { spec ->
+                        MaintenanceItemEntity(
+                            vehicleId = profileId,
+                            vehicleKey = vehicleKey,
+                            title = if (isEng) spec.titleEn else spec.titleRu,
+                            category = spec.category,
+                            intervalKm = spec.intervalKm,
+                            intervalHours = spec.intervalHours,
+                            lastServiceOdometerKm = 0f,
+                            lastServiceEngineHours = 0f,
+                            lastServiceTimestampMs = now
+                        )
+                    }
+                )
+            } else {
+                seedDefaultMaintenanceIfEmpty(profileId, vehicleKey, isEng)
+            }
+
+            var importedPids = 0
+            if (importRecommendedOemPids && template != null) {
+                for (packId in template.oemPackIds) {
+                    importedPids += importOemPack(packId, bindToVehicleId = profileId)
+                }
+            }
+
+            settingsDataStore.setOnboardingWizardCompleted(true)
+            sessionLogger.info(
+                "WIZARD",
+                "Мастер настройки завершён: $resolvedName (${fuelType.name}), OEM PIDs=+$importedPids"
+            )
+            pushWidgetSnapshot()
+        }
+    }
+
+    fun skipOnboardingWizard() {
+        scope.launch {
+            settingsDataStore.setOnboardingWizardCompleted(true)
+        }
+    }
+
+    fun reopenOnboardingWizard() {
+        scope.launch {
+            settingsDataStore.setOnboardingWizardCompleted(false)
         }
     }
 
@@ -1056,34 +1215,6 @@ class ObdTelemetryRepository(
         settingsDataStore.applyBackupPayload(payload)
 
         var importedCount = 0
-        if (payload.customPids.isNotEmpty()) {
-            val existingKeys = customPids.value.map { "${it.modeAndPid}|${it.equation}" }.toSet()
-            val toInsert = payload.customPids
-                .filter { "${it.modeAndPid}|${it.equation}" !in existingKeys }
-                .map { dto ->
-                    CustomPidEntity(
-                        name = dto.name,
-                        shortName = dto.shortName,
-                        modeAndPid = dto.modeAndPid,
-                        header = dto.header,
-                        equation = dto.equation,
-                        unit = dto.unit,
-                        minValue = dto.minValue,
-                        maxValue = dto.maxValue,
-                        decimals = dto.decimals,
-                        enabled = dto.enabled,
-                        warningHigh = dto.warningHigh,
-                        criticalHigh = dto.criticalHigh,
-                        warningLow = dto.warningLow,
-                        criticalLow = dto.criticalLow,
-                        alertsEnabled = dto.alertsEnabled
-                    )
-                }
-            if (toInsert.isNotEmpty()) {
-                customPidDao.insertAll(toInsert)
-                importedCount += toInsert.size
-            }
-        }
         if (payload.vehicleProfiles.isNotEmpty()) {
             val existingNames = vehicleProfiles.value.map { it.name.lowercase() }.toSet()
             val profilesToInsert = payload.vehicleProfiles
@@ -1104,6 +1235,44 @@ class ObdTelemetryRepository(
             if (profilesToInsert.isNotEmpty()) {
                 vehicleProfileDao.insertAll(profilesToInsert)
                 importedCount += profilesToInsert.size
+            }
+        }
+        if (payload.customPids.isNotEmpty()) {
+            val allProfiles = vehicleProfileDao.getAll()
+            val existingKeys = customPids.value.map {
+                "${it.modeAndPid}|${it.equation}|${it.vehicleProfileId ?: 0L}"
+            }.toSet()
+            val toInsert = payload.customPids.mapNotNull { dto ->
+                val targetVehicleId = dto.vehicleName?.let { vName ->
+                    allProfiles.find { it.name.equals(vName, ignoreCase = true) }?.id
+                }
+                val key = "${dto.modeAndPid}|${dto.equation}|${targetVehicleId ?: 0L}"
+                if (key in existingKeys) {
+                    null
+                } else {
+                    CustomPidEntity(
+                        name = dto.name,
+                        shortName = dto.shortName,
+                        modeAndPid = dto.modeAndPid,
+                        header = dto.header,
+                        equation = dto.equation,
+                        unit = dto.unit,
+                        minValue = dto.minValue,
+                        maxValue = dto.maxValue,
+                        decimals = dto.decimals,
+                        enabled = dto.enabled,
+                        warningHigh = dto.warningHigh,
+                        criticalHigh = dto.criticalHigh,
+                        warningLow = dto.warningLow,
+                        criticalLow = dto.criticalLow,
+                        alertsEnabled = dto.alertsEnabled,
+                        vehicleProfileId = targetVehicleId
+                    )
+                }
+            }
+            if (toInsert.isNotEmpty()) {
+                customPidDao.insertAll(toInsert)
+                importedCount += toInsert.size
             }
         }
         sessionLogger.info("BACKUP", "Импортирована резервная копия JSON (+$importedCount объектов)")
@@ -1255,6 +1424,49 @@ class ObdTelemetryRepository(
                 latencyMs = 0L,
                 errorMessage = e.message ?: if (isEng) "Adapter communication error" else "Ошибка обмена с адаптером"
             )
+        }
+    }
+
+    fun probeVehicleCustomPids() {
+        if (_isProbingCustomPids.value) return
+        scope.launch {
+            probeVehicleCustomPidsInternal(onlyUnknown = false)
+        }
+    }
+
+    private suspend fun probeVehicleCustomPidsInternal(onlyUnknown: Boolean) {
+        val conn = _connectionState.value
+        if (!conn.isActiveTelemetry) return
+        val activeId = activeVehicleProfile()?.id
+        val candidates = customPids.value.filter { pid ->
+            val belongsToCar = pid.vehicleProfileId == null || activeId == null || pid.vehicleProfileId == activeId
+            val needsProbe = if (onlyUnknown) pid.enabled && pid.probeStatus == "UNKNOWN" else true
+            belongsToCar && needsProbe
+        }
+        if (candidates.isEmpty()) return
+
+        _isProbingCustomPids.value = true
+        try {
+            var supportedCount = 0
+            var unsupportedCount = 0
+            for (pid in candidates) {
+                val res = probeCustomPid(pid.modeAndPid, pid.header, pid.equation)
+                if (res.isSuccess) {
+                    supportedCount++
+                    unsupportedSensorIds.remove(pid.sensorId)
+                    customPidDao.update(pid.copy(probeStatus = "SUPPORTED", enabled = true))
+                } else {
+                    unsupportedCount++
+                    unsupportedSensorIds.add(pid.sensorId)
+                    customPidDao.update(pid.copy(probeStatus = "UNSUPPORTED", enabled = false))
+                }
+            }
+            sessionLogger.info(
+                "PROBE",
+                "Автопроверка PID завершена: активно $supportedCount, отключено $unsupportedCount"
+            )
+        } finally {
+            _isProbingCustomPids.value = false
         }
     }
 
@@ -1480,10 +1692,16 @@ class ObdTelemetryRepository(
 
     // --- OEM Brand PID Catalog ---
 
-    suspend fun importOemPack(packId: String): Int {
+    suspend fun importOemPack(
+        packId: String,
+        bindToVehicleId: Long? = activeVehicleProfile()?.id
+    ): Int {
         val pack = OemPidCatalog.findById(packId) ?: return 0
         val isEng = settings.value.isEnglish
-        val existingKeys = customPids.value.map { "${it.modeAndPid}|${it.equation}" }.toSet()
+        val existingKeys = customPids.value
+            .filter { it.vehicleProfileId == bindToVehicleId || it.vehicleProfileId == null }
+            .map { "${it.modeAndPid}|${it.equation}" }
+            .toSet()
         val toInsert = pack.pids
             .filter { "${it.modeAndPid}|${it.equation}" !in existingKeys }
             .map { spec ->
@@ -1500,7 +1718,9 @@ class ObdTelemetryRepository(
                     enabled = true,
                     warningHigh = spec.warningHigh,
                     criticalHigh = spec.criticalHigh,
-                    alertsEnabled = spec.warningHigh != null || spec.criticalHigh != null
+                    alertsEnabled = spec.warningHigh != null || spec.criticalHigh != null,
+                    vehicleProfileId = bindToVehicleId,
+                    probeStatus = "UNKNOWN"
                 )
             }
         if (toInsert.isNotEmpty()) {
@@ -2340,9 +2560,11 @@ class ObdTelemetryRepository(
         criticalHigh: Float? = null,
         warningLow: Float? = null,
         criticalLow: Float? = null,
-        alertsEnabled: Boolean = true
+        alertsEnabled: Boolean = true,
+        bindToActiveVehicle: Boolean = true
     ) {
         scope.launch {
+            val vehicleId = if (bindToActiveVehicle) activeVehicleProfile()?.id else null
             val entity = CustomPidEntity(
                 name = name.trim(),
                 shortName = shortName.trim().ifBlank { name.trim().take(12) },
@@ -2358,7 +2580,9 @@ class ObdTelemetryRepository(
                 criticalHigh = criticalHigh,
                 warningLow = warningLow,
                 criticalLow = criticalLow,
-                alertsEnabled = alertsEnabled
+                alertsEnabled = alertsEnabled,
+                vehicleProfileId = vehicleId,
+                probeStatus = "UNKNOWN"
             )
             val newId = customPidDao.insert(entity)
             unsupportedSensorIds.remove("CUSTOM_$newId")
@@ -2385,9 +2609,10 @@ class ObdTelemetryRepository(
         }
     }
 
-    suspend fun importTorqueCsv(csvText: String): Int {
+    suspend fun importTorqueCsv(csvText: String, bindToActiveVehicle: Boolean = true): Int {
         val parsed = TorqueEquationEvaluator.parseTorqueCsv(csvText)
         if (parsed.isEmpty()) return 0
+        val vehicleId = if (bindToActiveVehicle) activeVehicleProfile()?.id else null
         val entities = parsed.map { item ->
             CustomPidEntity(
                 name = item.name,
@@ -2399,7 +2624,9 @@ class ObdTelemetryRepository(
                 minValue = item.minValue,
                 maxValue = item.maxValue,
                 decimals = 1,
-                enabled = true
+                enabled = true,
+                vehicleProfileId = vehicleId,
+                probeStatus = "UNKNOWN"
             )
         }
         customPidDao.insertAll(entities)
@@ -2722,6 +2949,12 @@ class ObdTelemetryRepository(
                     batteryVoltage = _readings.value[ObdPid.CONTROL_MODULE_VOLTAGE.modeAndPid]?.value
                 )
             )
+            if (milOn || codes.isNotEmpty()) {
+                saveTelemetrySnapshotInternal(
+                    triggerType = "DTC",
+                    dtcSummary = if (codes.isEmpty()) "MIL ON" else codes.joinToString(", ") { it.code }
+                )
+            }
         } catch (e: Exception) {
             sessionLogger.error("DTC", "Ошибка чтения DTC", e)
             _dtcState.update {
@@ -2832,8 +3065,10 @@ class ObdTelemetryRepository(
         recordSensorValue(resolveSensor(ObdPid.SHORT_FUEL_TRIM), stft)
         recordSensorValue(resolveSensor(ObdPid.LONG_FUEL_TRIM), ltft)
 
+        val activeId = activeVehicleProfile()?.id
         for (custom in customPids.value) {
             if (!custom.enabled) continue
+            if (custom.vehicleProfileId != null && activeId != null && custom.vehicleProfileId != activeId) continue
             val sensor = currentSensors.find { it.id == custom.sensorId } ?: custom.toTelemetrySensor()
             val wave = ((sin((tick + custom.id * 5) * 0.12) + 1.0) * 0.5).toFloat()
             val value = sensor.minRange + wave * (sensor.maxRange - sensor.minRange) * 0.75f
@@ -3045,7 +3280,43 @@ class ObdTelemetryRepository(
         }
         createdReading?.let { reading ->
             alertManager.evaluateAndNotify(effectiveSensor, reading, currentSettings)
+            if (reading.alertLevel == AlertLevel.CRITICAL) {
+                val now = System.currentTimeMillis()
+                if (now - lastCriticalSnapshotMs >= 60_000L) {
+                    lastCriticalSnapshotMs = now
+                    val label = "${effectiveSensor.localizedDisplayName(currentSettings.isEnglish)}: ${String.format(Locale.US, "%.1f", reading.value)}"
+                    scope.launch {
+                        saveTelemetrySnapshotInternal(triggerType = "ALERT", dtcSummary = label)
+                    }
+                }
+            }
         }
+    }
+
+    private suspend fun saveTelemetrySnapshotInternal(triggerType: String, dtcSummary: String) {
+        val r = _readings.value
+        val vehName = activeVehicleProfile()?.name ?: ""
+        telemetrySnapshotDao.insert(
+            TelemetrySnapshotEntity(
+                timestampMs = System.currentTimeMillis(),
+                triggerType = triggerType,
+                dtcSummary = dtcSummary.take(140),
+                rpm = r[ObdPid.ENGINE_RPM.modeAndPid]?.value,
+                speedKmh = r[ObdPid.VEHICLE_SPEED.modeAndPid]?.value,
+                coolantTempC = r[ObdPid.COOLANT_TEMP.modeAndPid]?.value,
+                engineLoadPct = r[ObdPid.ENGINE_LOAD.modeAndPid]?.value,
+                batteryVoltage = r[ObdPid.CONTROL_MODULE_VOLTAGE.modeAndPid]?.value,
+                stftPct = r[ObdPid.SHORT_FUEL_TRIM.modeAndPid]?.value,
+                ltftPct = r[ObdPid.LONG_FUEL_TRIM.modeAndPid]?.value,
+                intakeMapKpa = r[ObdPid.INTAKE_MAP.modeAndPid]?.value,
+                vehicleName = vehName
+            )
+        )
+        sessionLogger.info("SNAP", "Сохранён снимок телеметрии [$triggerType]: $dtcSummary")
+    }
+
+    fun clearTelemetrySnapshots() {
+        scope.launch { telemetrySnapshotDao.clearAll() }
     }
 
     private suspend fun disconnectInternal(resetReadings: Boolean) {

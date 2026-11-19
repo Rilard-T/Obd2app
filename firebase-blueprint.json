@@ -73,6 +73,7 @@
       "type": "object",
       "properties": {
         "userId": { "type": "string", "description": "Firebase Auth UID of owner" },
+        "vehicleKey": { "type": "string", "description": "Optional vehicle key binding PID to a specific car profile" },
         "name": { "type": "string", "description": "Full display name" },
         "shortName": { "type": "string", "description": "Compact label" },
         "modeAndPid": { "type": "string", "description": "Hex OBD2 mode and PID" },

@@ -137,6 +137,7 @@ fun MaintenanceItemEntity.toCloudWriteMap(
 data class CloudCustomPid(
     @DocumentId val id: String = "",
     val userId: String = "",
+    val vehicleKey: String? = null,
     val name: String = "",
     val shortName: String = "",
     val modeAndPid: String = "",
@@ -155,7 +156,7 @@ data class CloudCustomPid(
     val createdAt: Timestamp? = null,
     val updatedAt: Timestamp? = null
 ) {
-    fun toEntity(existingId: Long = 0L): CustomPidEntity {
+    fun toEntity(existingId: Long = 0L, vehicleProfileId: Long? = null): CustomPidEntity {
         return CustomPidEntity(
             id = existingId,
             name = name,
@@ -172,13 +173,15 @@ data class CloudCustomPid(
             criticalHigh = criticalHigh?.toFloat(),
             warningLow = warningLow?.toFloat(),
             criticalLow = criticalLow?.toFloat(),
-            alertsEnabled = alertsEnabled
+            alertsEnabled = alertsEnabled,
+            vehicleProfileId = vehicleProfileId
         )
     }
 }
 
 fun CustomPidEntity.toCloudWriteMap(
     userId: String,
+    resolvedVehicleKey: String? = null,
     existingCreatedAt: Timestamp? = null
 ): Map<String, Any> {
     val map = mutableMapOf<String, Any>(
@@ -197,6 +200,9 @@ fun CustomPidEntity.toCloudWriteMap(
         "createdAt" to (existingCreatedAt ?: FieldValue.serverTimestamp()),
         "updatedAt" to FieldValue.serverTimestamp()
     )
+    resolvedVehicleKey?.trim()?.take(128)?.takeIf { it.isNotEmpty() }?.let {
+        map["vehicleKey"] = it
+    }
     warningHigh?.let { map["warningHigh"] = it.toDouble() }
     criticalHigh?.let { map["criticalHigh"] = it.toDouble() }
     warningLow?.let { map["warningLow"] = it.toDouble() }

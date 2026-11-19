@@ -361,7 +361,7 @@
     <string name="garage_add_btn">Add Vehicle</string>
     <string name="garage_bind_vin_btn">Bind Current VIN</string>
     <string name="garage_name_label">Vehicle name / model</string>
-    <string name="garage_vin_label">VIN (optional)</string>
+    <string name="garage_vin_label">VIN / Frame No. (optional)</string>
     <string name="garage_disp_label">Engine displacement (L)</string>
     <string name="garage_fuel_type_label">Fuel type</string>
     <string name="garage_redline_label">Redline (RPM)</string>
@@ -562,7 +562,8 @@
     <string name="vision_apply_receipt_btn">Apply Fuel Price (%1$.2f/L)</string>
     <string name="vision_apply_invoice_btn">Save to Maintenance Log</string>
     <string name="garage_curb_weight_label">Curb Weight (kg, for Virtual Dyno)</string>
-    <string name="garage_ai_autofill_btn">AI Auto-Fill by VIN / Model</string>
+    <string name="garage_ai_autofill_btn">AI Auto-Fill by VIN / Frame / Model</string>
+    <string name="garage_frame_autofill_btn">Auto-fill from Frame: %1$s</string>
     <string name="garage_ai_loading">AI is looking up specs &amp; service schedule…</string>
     <string name="garage_ai_apply_btn">Apply Specs + Service + OEM PIDs</string>
 
@@ -581,4 +582,71 @@
     <string name="terminal_input_hint">Command (e.g. ATZ, ATI, ATRV, 0100, 03)</string>
     <string name="terminal_send_btn">Send</string>
     <string name="terminal_clear_btn">Clear</string>
+
+    <!-- Quick Settings Tile -->
+    <string name="qs_tile_label">OBD2 Connect</string>
+    <string name="qs_tile_connected">OBD2 Online</string>
+
+    <!-- Section Sub-Tabs (Menu Decluttering) -->
+    <string name="subtab_sensors_live">Live</string>
+    <string name="subtab_sensors_charts">Charts</string>
+    <string name="subtab_sensors_pids">OEM / PID</string>
+    <string name="subtab_diag_codes">ECU Codes</string>
+    <string name="subtab_diag_ai">AI &amp; Inspect</string>
+    <string name="subtab_diag_health">Trim &amp; Logs</string>
+    <string name="subtab_trip_live">Trip</string>
+    <string name="subtab_trip_dyno">Dyno &amp; 0-100</string>
+    <string name="subtab_trip_history">TO &amp; Archive</string>
+    <string name="subtab_conn_adapter">Adapter</string>
+    <string name="subtab_conn_cockpit">Cockpit &amp; Tests</string>
+    <string name="subtab_conn_settings">Cloud &amp; Options</string>
+
+    <!-- Smart PID Probe & Per-Car Binding -->
+    <string name="probe_pids_btn">Auto-Probe Vehicle PIDs</string>
+    <string name="probe_pids_running">Probing ECU PIDs…</string>
+    <string name="probe_status_supported">OK</string>
+    <string name="probe_status_unsupported">Unsupported</string>
+    <string name="probe_status_unknown">Untested</string>
+    <string name="pid_bound_car_fmt">Car: %1$s</string>
+    <string name="pid_global_label">All vehicles</string>
+
+    <!-- Fuel Trim Health (STFT + LTFT) -->
+    <string name="trim_card_title">Fuel Mixture Health (STFT + LTFT)</string>
+    <string name="trim_stft_label">STFT (short)</string>
+    <string name="trim_ltft_label">LTFT (long)</string>
+    <string name="trim_total_label">Total</string>
+
+    <!-- Auto Telemetry Snapshots -->
+    <string name="snap_card_title">Auto Telemetry Snapshots (DTC / Alerts)</string>
+    <string name="snap_empty">Snapshots are saved automatically when a fault code is scanned or a critical alert triggers.</string>
+    <string name="snap_trigger_dtc">DTC Scan</string>
+    <string name="snap_trigger_alert">Alert</string>
+
+    <!-- Trip Telemetry Curve -->
+    <string name="trip_curve_btn">Curve</string>
+    <string name="trip_curve_title">Trip Curve: %1$s</string>
+    <string name="trip_curve_legend">Cyan: Speed (km/h) • Amber: Engine RPM</string>
+    <string name="trip_curve_no_data">Not enough points recorded for chart</string>
+
+    <!-- First-Run Setup Wizard -->
+    <string name="wizard_step_fmt">Step %1$d of 3</string>
+    <string name="wizard_skip_btn">Skip</string>
+    <string name="wizard_back_btn">Back</string>
+    <string name="wizard_next_btn">Next</string>
+    <string name="wizard_finish_btn">Save &amp; Start</string>
+    <string name="wizard_step1_title">Welcome to OBD2 Auto</string>
+    <string name="wizard_step1_desc">Choose your preferred language. Next you can select your vehicle make and model to bind OEM PIDs and maintenance intervals.</string>
+    <string name="wizard_step2_title">Vehicle &amp; Engine Setup</string>
+    <string name="wizard_step2_vin_label">VIN or Chassis / Frame No. (e.g. ZVW30-1234567)</string>
+    <string name="wizard_vin_detected_fmt">Detected brand from VIN: %1$s</string>
+    <string name="wizard_frame_detected_fmt">Matched frame code: %1$s • %2$s</string>
+    <string name="wizard_brand_label">Make / Brand</string>
+    <string name="wizard_model_label">Model &amp; Engine</string>
+    <string name="wizard_car_name_label">Garage profile name</string>
+    <string name="wizard_step3_title">Setup Summary</string>
+    <string name="wizard_import_oem_switch">Bind OEM PID pack (%1$d PIDs) &amp; default maintenance items</string>
+    <string name="wizard_summary_hint">You can adjust any parameter later in Garage or OEM / PID tab.</string>
+    <string name="settings_setup_wizard_title">Vehicle Setup Wizard</string>
+    <string name="settings_setup_wizard_desc">Re-select vehicle make, model, VIN / frame and bind OEM PIDs.</string>
+    <string name="settings_setup_wizard_btn">Run Wizard</string>
 </resources>

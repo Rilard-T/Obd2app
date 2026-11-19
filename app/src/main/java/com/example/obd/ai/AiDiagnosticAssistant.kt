@@ -525,15 +525,19 @@ class AiDiagnosticAssistant {
         val cleanQuery = query.trim()
         if (cleanVin == null && cleanQuery.isBlank()) {
             return Result.failure(
-                IllegalArgumentException(if (isEnglish) "Enter VIN or vehicle model" else "Укажите VIN или модель автомобиля")
+                IllegalArgumentException(
+                    if (isEnglish) "Enter VIN, Frame/Chassis No., or vehicle model"
+                    else "Укажите VIN, номер кузова или модель автомобиля"
+                )
             )
         }
         val langNote = if (isEnglish) "Write maintenance task titles in concise English." else "Названия работ ТО пиши кратко на русском языке."
         val prompt = """
             Identify technical vehicle parameters for an OBD2 telemetry profile.
             $langNote
-            VIN: ${cleanVin ?: "Unknown"}
-            Model / Name query: ${cleanQuery.ifBlank { "Infer from VIN" }}
+            VIN / Chassis / Frame Number: ${cleanVin ?: "Unknown"}
+            Model / Name query: ${cleanQuery.ifBlank { "Infer from VIN or Chassis/Frame Number" }}
+            Note: The identifier may be a standard 17-char VIN OR a Japanese/RHD Chassis/Frame Number (such as ZVW30-1234567, DAA-ZVW30-1234567, NZE121-0123456, SG5-012345, GK3-100001). Decode the chassis/model prefix before the dash to identify make, model, engine displacement, fuel type, redline, and curb weight.
             Choose recommendedOemPackId ONLY from: vag, toyota_hybrid, hyundai_kia, bmw, ford_mazda, diesel_dpf (or empty string if none matches).
         """.trimIndent()
 
