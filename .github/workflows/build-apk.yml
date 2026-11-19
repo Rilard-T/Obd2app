@@ -32,7 +32,7 @@ jobs:
             yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
           fi
 
-      - name: Prepare keystores
+      - name: Prepare keystores and optional Firebase config
         run: |
           if [ -f debug.keystore.base64 ]; then
             base64 -d debug.keystore.base64 > debug.keystore
@@ -47,6 +47,9 @@ jobs:
             echo "HAS_RELEASE_KEY=true" >> "$GITHUB_ENV"
           else
             echo "HAS_RELEASE_KEY=false" >> "$GITHUB_ENV"
+          fi
+          if [ ! -f app/google-services.json ] && [ -n "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" ]; then
+            echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > app/google-services.json
           fi
 
       - name: Set up Gradle 9.3.1

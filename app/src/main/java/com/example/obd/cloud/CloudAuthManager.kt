@@ -9,7 +9,6 @@ import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.NoCredentialException
-import com.example.R
 import com.example.obd.model.CloudUserSummary
 import com.google.android.gms.tasks.Task
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
@@ -43,7 +42,12 @@ class CloudAuthManager(context: Context) {
     private val appContext = context.applicationContext
     private val credentialManager = CredentialManager.create(appContext)
     private val webClientId: String by lazy {
-        appContext.getString(R.string.default_web_client_id)
+        val resId = appContext.resources.getIdentifier(
+            "default_web_client_id",
+            "string",
+            appContext.packageName
+        )
+        if (resId != 0) appContext.getString(resId) else ""
     }
 
     fun currentUserSummary(): CloudUserSummary? {
@@ -79,10 +83,14 @@ class CloudAuthManager(context: Context) {
         activityContext: Context,
         isEnglish: Boolean
     ): Result<CloudUserSummary> {
-        if (webClientId.isBlank()) {
+        if (FirebaseApp.getApps(appContext).isEmpty() || webClientId.isBlank()) {
             return Result.failure(
                 IllegalStateException(
-                    if (isEnglish) "Google Web Client ID is missing" else "Не найден Web Client ID Google"
+                    if (isEnglish) {
+                        "Firebase / Google Web Client ID is not configured in this build"
+                    } else {
+                        "Firebase / Google Web Client ID не настроен в этой сборке"
+                    }
                 )
             )
         }

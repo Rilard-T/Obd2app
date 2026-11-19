@@ -27,6 +27,13 @@ class CloudSyncRepository(
     }
 
     suspend fun syncAll(isEnglish: Boolean): Result<Int> {
+        if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) {
+            return Result.failure(
+                IllegalStateException(
+                    if (isEnglish) "Firebase is not configured in this build" else "Firebase не настроен в этой сборке"
+                )
+            )
+        }
         val user = Firebase.auth.currentUser
             ?: return Result.failure(
                 IllegalStateException(
